@@ -78,9 +78,6 @@ func CheckDeps() []string {
 	if _, err := exec.LookPath(CONVERT_BIN); err != nil {
 		unfoundBins = append(unfoundBins, CONVERT_BIN)
 	}
-	if _, err := exec.LookPath("exiv2"); err != nil {
-		unfoundBins = append(unfoundBins, "exiv2")
-	}
 	if _, err := exec.LookPath("gifsicle"); err != nil {
 		unfoundBins = append(unfoundBins, "gifsicle")
 	}
