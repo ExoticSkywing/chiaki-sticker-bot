@@ -18,6 +18,11 @@ var IDENTIFY_BIN = "identify"
 var CONVERT_ARGS []string
 var IDENTIFY_ARGS []string
 
+// ffmpegQ are the standard quiet flags prepended to every ffmpeg call.
+// -loglevel error : suppress info/warning messages, only show errors
+// -nostats        : suppress the frame=.../fps=.../size=... progress line
+var ffmpegQ = []string{"-hide_banner", "-loglevel", "error", "-nostats"}
+
 const (
 	FORMAT_TG_REGULAR_STATIC   = "tg_reg_static"
 	FORMAT_TG_EMOJI_STATIC     = "tg_emoji_static"
@@ -206,7 +211,8 @@ func FFToWebmTGVideo(f string, isCustomEmoji bool) (string, error) {
 	pathOut := f + ".webm"
 	bin := FFMPEG_BIN
 	baseargs := []string{}
-	baseargs = append(baseargs, "-hide_banner", "-i", f)
+	baseargs = append(baseargs, ffmpegQ...)
+	baseargs = append(baseargs, "-i", f)
 	if isCustomEmoji {
 		baseargs = append(baseargs, "-vf", "scale=100:100:force_original_aspect_ratio=decrease")
 	} else {
@@ -265,8 +271,8 @@ func FFToWebmTGVideo(f string, isCustomEmoji bool) (string, error) {
 func FFToWebmSafe(f string, isCustomEmoji bool) (string, error) {
 	pathOut := f + ".webm"
 	bin := FFMPEG_BIN
-	args := []string{}
-	args = append(args, "-hide_banner", "-i", f)
+	args := append([]string{}, ffmpegQ...)
+	args = append(args, "-i", f)
 	if isCustomEmoji {
 		args = append(args, "-vf", "scale=100:100:force_original_aspect_ratio=decrease")
 	} else {
@@ -276,8 +282,10 @@ func FFToWebmSafe(f string, isCustomEmoji bool) (string, error) {
 		"-c:v", "libvpx-vp9", "-cpu-used", "5", "-minrate", "50k", "-b:v", "200k", "-maxrate", "300k",
 		"-to", "00:00:02.800", "-r", "30", "-an", "-y", pathOut)
 
-	cmd := exec.Command(bin, args...)
-	err := cmd.Run()
+	out, err := exec.Command(bin, args...).CombinedOutput()
+	if err != nil {
+		log.Warnf("FFToWebmSafe ERROR:\n%s", string(out))
+	}
 	return pathOut, err
 }
 
@@ -290,10 +298,11 @@ func FFToGif(f string) (string, error) {
 	pathOut := f + ".gif"
 	bin := FFMPEG_BIN
 	args = append(args, decoder...)
-	args = append(args, "-i", f, "-hide_banner",
+	args = append(args, ffmpegQ...)
+	args = append(args, "-i", f,
 		"-lavfi", "split[a][b];[a]palettegen=reserve_transparent=1[p];[b][p]paletteuse=alpha_threshold=128:dither=atkinson",
 		"-gifflags", "-transdiff", "-gifflags", "-offsetting",
-		"-loglevel", "error", "-y", pathOut)
+		"-y", pathOut)
 
 	out, err := exec.Command(bin, args...).CombinedOutput()
 	if err != nil {
@@ -407,10 +416,11 @@ func FFToAnimatedWebpLQ(f string) error {
 	pathOut := strings.ReplaceAll(f, ".webm", ".webp")
 	bin := FFMPEG_BIN
 
-	args := []string{"-hide_banner", "-c:v", "libvpx-vp9", "-i", f,
+	args := append([]string{}, ffmpegQ...)
+	args = append(args, "-c:v", "libvpx-vp9", "-i", f,
 		"-vf", "scale=128:128:force_original_aspect_ratio=decrease",
 		"-loop", "0", "-pix_fmt", "yuva420p",
-		"-an", "-y", pathOut}
+		"-an", "-y", pathOut)
 
 	out, err := exec.Command(bin, args...).CombinedOutput()
 	if err != nil {
@@ -429,23 +439,26 @@ func FFToAnimatedWebpWA(f string) error {
 	qualities := []string{"75", "50", "20", "0", "_DS256", "_DS256Q0"}
 
 	for _, q := range qualities {
-		args := []string{"-hide_banner", "-c:v", "libvpx-vp9", "-i", f,
+		args := append([]string{}, ffmpegQ...)
+		args = append(args, "-c:v", "libvpx-vp9", "-i", f,
 			"-vf", "scale=512:512:force_original_aspect_ratio=decrease,pad=512:512:-1:-1:color=black@0",
 			"-quality", q, "-loop", "0", "-pix_fmt", "yuva420p",
-			"-an", "-y", pathOut}
+			"-an", "-y", pathOut)
 
 		if q == "_DS256" {
-			args = []string{"-hide_banner", "-c:v", "libvpx-vp9", "-i", f,
+			args = append([]string{}, ffmpegQ...)
+			args = append(args, "-c:v", "libvpx-vp9", "-i", f,
 				"-vf", "scale=256:256:force_original_aspect_ratio=decrease,pad=512:512:-1:-1:color=black@0",
 				"-quality", "20", "-loop", "0", "-pix_fmt", "yuva420p",
-				"-an", "-y", pathOut}
+				"-an", "-y", pathOut)
 		}
 
 		if q == "_DS256Q0" {
-			args = []string{"-hide_banner", "-c:v", "libvpx-vp9", "-i", f,
+			args = append([]string{}, ffmpegQ...)
+			args = append(args, "-c:v", "libvpx-vp9", "-i", f,
 				"-vf", "scale=256:256:force_original_aspect_ratio=decrease,pad=512:512:-1:-1:color=black@0",
 				"-quality", "0", "-loop", "0", "-pix_fmt", "yuva420p",
-				"-an", "-y", pathOut}
+				"-an", "-y", pathOut)
 		}
 
 		out, err := exec.Command(bin, args...).CombinedOutput()
@@ -474,8 +487,8 @@ func FFToAnimatedWebpWA(f string) error {
 func FFtoPNG(f string, pathOut string) error {
 	var args []string
 	bin := FFMPEG_BIN
-	args = append(args, "-c:v", "libvpx-vp9", "-i", f, "-hide_banner",
-		"-loglevel", "error", "-frames", "1", "-y", pathOut)
+	args = append(args, ffmpegQ...)
+	args = append(args, "-c:v", "libvpx-vp9", "-i", f, "-frames", "1", "-y", pathOut)
 
 	out, err := exec.Command(bin, args...).CombinedOutput()
 	if err != nil {
