@@ -107,6 +107,11 @@ func prepareKakaoStickers(ctx context.Context, ld *LineData, workDir string, nee
 			select {
 			case <-ctx.Done():
 				log.Warn("prepareKakaoStickers received ctxDone!")
+				// Mark remaining files as done with a cancellation error.
+				for j := i; j < len(ld.Files); j++ {
+					ld.Files[j].CError = ctx.Err()
+					ld.Files[j].Wg.Done()
+				}
 				return
 			default:
 			}
@@ -118,15 +123,27 @@ func prepareKakaoStickers(ctx context.Context, ld *LineData, workDir string, nee
 			err := httpDownloadWithReferer(l, f, "https://e.kakao.com/")
 			if err != nil {
 				log.Warnln("prepareKakaoStickers: download error:", err)
-				ld.Files[i].CError = err
-				ld.Files[i].Wg.Done()
-				continue
+				// Fail fast: mark remaining files with the error.
+				for j := i; j < len(ld.Files); j++ {
+					ld.Files[j].CError = err
+					ld.Files[j].Wg.Done()
+				}
+				return
 			}
 			var cf string
 			if isAnimated {
-				cf, _ = ConverMediaToTGStickerSmart(f, false)
+				cf, err = ConverMediaToTGStickerSmart(f, false)
 			} else {
-				cf, _ = IMToWebpTGStatic(f, false)
+				cf, err = IMToWebpTGStatic(f, false)
+			}
+			if err != nil {
+				log.Warnln("prepareKakaoStickers: convert error:", err)
+				// Fail fast: mark remaining files with the error.
+				for j := i; j < len(ld.Files); j++ {
+					ld.Files[j].CError = err
+					ld.Files[j].Wg.Done()
+				}
+				return
 			}
 			ld.Files[i].OriginalFile = f
 			ld.Files[i].ConvertedFile = cf

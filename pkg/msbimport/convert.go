@@ -169,24 +169,18 @@ func IMToApng(f string) (string, error) {
 	pathOut := f + ".apng"
 	bin := CONVERT_BIN
 	args := CONVERT_ARGS
-	args = append(args, f, pathOut)
+	// Use "WEBP:" prefix so ImageMagick detects the format even without a file extension.
+	args = append(args, "WEBP:"+f, pathOut)
 
 	out, err := exec.Command(bin, args...).CombinedOutput()
 	if err != nil {
 		log.Warnln("imToApng ERROR:", string(out))
 		return "", err
 	}
-	return pathOut, err
-}
-
-// PythonWebpToGif converts an animated WebP to GIF using Pillow.
-// Used as fallback when ffmpeg cannot decode animated WebP directly.
-func PythonWebpToGif(f string) (string, error) {
-	pathOut := f + ".gif"
-	out, err := exec.Command("msb_webp_to_gif.py", f, pathOut).CombinedOutput()
-	if err != nil {
-		log.Warnln("PythonWebpToGif ERROR:", string(out))
-		return "", err
+	// Detect silent failure: ImageMagick may exit 0 but produce an empty file.
+	if st, stErr := os.Stat(pathOut); stErr != nil || st.Size() == 0 {
+		log.Warnln("imToApng: output file missing or empty, ImageMagick output:", string(out))
+		return "", errors.New("imToApng: output file missing or empty")
 	}
 	return pathOut, nil
 }
@@ -256,12 +250,12 @@ func FFToWebmTGVideo(f string, isCustomEmoji bool) (string, error) {
 			outStr := string(out)
 			webpUnsupported := strings.Contains(outStr, "skipping unsupported chunk: ANIM") ||
 				strings.Contains(outStr, "image data not found")
-			// Only attempt GIF fallback once (not if input is already a GIF).
-			if webpUnsupported && !strings.HasSuffix(f, ".gif") {
-				log.Warnln("Trying to convert animated WebP to GIF first.")
-				f2, err2 := PythonWebpToGif(f)
+			// Only attempt APNG fallback once (not if input is already APNG).
+			if webpUnsupported && !strings.HasSuffix(f, ".apng") {
+				log.Warnln("Trying to convert animated WebP to APNG first.")
+				f2, err2 := IMToApng(f)
 				if err2 != nil {
-					log.Warnln("PythonWebpToGif ERROR:", err2)
+					log.Warnln("IMToApng ERROR:", err2)
 					return pathOut, err2
 				}
 				return FFToWebmTGVideo(f2, isCustomEmoji)
