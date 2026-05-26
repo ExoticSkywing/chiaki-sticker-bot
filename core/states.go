@@ -202,6 +202,13 @@ func confirmImport(c tele.Context, wantEmoji bool) error {
 	}
 	for i, lf := range ud.lineData.Files {
 		lf.Wg.Wait()
+		if lf.CError != nil {
+			// Mark remaining stickers done so no goroutine blocks, then abort.
+			for j := i; j < len(ud.stickerData.stickers); j++ {
+				ud.stickerData.stickers[j].wg.Done()
+			}
+			return lf.CError
+		}
 		ud.stickerData.stickers[i].wg.Done()
 		ud.stickerData.stickers[i].oPath = lf.OriginalFile
 		ud.stickerData.stickers[i].cPath = lf.ConvertedFile
