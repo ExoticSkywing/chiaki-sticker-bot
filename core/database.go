@@ -3,6 +3,7 @@ package core
 import (
 	"database/sql"
 	"strings"
+	"time"
 
 	"github.com/go-sql-driver/mysql"
 	log "github.com/sirupsen/logrus"
@@ -86,6 +87,11 @@ func initDB(dbname string) error {
 	db.Close()
 	dsn.DBName = dbname
 	db, _ = sql.Open("mysql", dsn.FormatDSN())
+	// Recycle connections after 3 minutes so they don't outlive the server's
+	// wait_timeout (cloud DBs often set this to 5-10 minutes).
+	db.SetConnMaxLifetime(3 * time.Minute)
+	db.SetMaxOpenConns(5)
+	db.SetMaxIdleConns(2)
 	log.Debugln("DB DSN:", dsn.FormatDSN())
 
 	var dbVer string
