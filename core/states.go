@@ -255,10 +255,6 @@ NEXT:
 	if err != nil {
 		return c.Send("bad sticker set! try again or /quit")
 	}
-	err = prepareWebAppEditStickers(users.data[c.Sender().ID])
-	if err != nil {
-		return c.Send("error preparing stickers for webapp /quit")
-	}
 	if ud.stickerData.cAmount == 120 {
 		sendStickerSetFullWarning(c)
 	}
