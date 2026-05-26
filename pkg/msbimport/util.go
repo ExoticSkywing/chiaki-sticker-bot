@@ -26,7 +26,37 @@ func httpDownload(link string, f string) error {
 		return err
 	}
 	defer res.Body.Close()
+	if res.StatusCode != 200 {
+		return fmt.Errorf("httpDownload: HTTP %d for %s", res.StatusCode, link)
+	}
 	fp, _ := os.Create(f)
+	defer fp.Close()
+	_, err = io.Copy(fp, res.Body)
+	return err
+}
+
+// httpDownloadWithReferer downloads with a browser-like UA and Referer header.
+// Some CDNs (e.g. Kakao) block bare requests without proper headers.
+func httpDownloadWithReferer(link string, f string, referer string) error {
+	req, err := http.NewRequest("GET", link, nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
+	req.Header.Set("Referer", referer)
+	req.Header.Set("Accept", "image/webp,image/apng,image/*,*/*;q=0.8")
+	res, err := httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != 200 {
+		return fmt.Errorf("httpDownloadWithReferer: HTTP %d for %s", res.StatusCode, link)
+	}
+	fp, err := os.Create(f)
+	if err != nil {
+		return err
+	}
 	defer fp.Close()
 	_, err = io.Copy(fp, res.Body)
 	return err
