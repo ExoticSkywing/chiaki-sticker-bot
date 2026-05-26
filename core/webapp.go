@@ -42,6 +42,7 @@ func InitWebAppServer() {
 		webappApi.POST("/edit/result", apiEditResult)
 		webappApi.POST("/edit/move", apiEditMove)
 		webappApi.GET("/export", apiExport)
+		webappApi.GET("/proxy", apiProxy)
 	}
 
 	go func() {
@@ -51,6 +52,37 @@ func InitWebAppServer() {
 		}
 		log.Infoln("WebApp: Listening on ", msbconf.WebappApiListenAddr)
 	}()
+}
+
+// apiProxy streams a sticker file directly from Telegram CDN to the browser.
+// This avoids pre-downloading all stickers server-side, reducing memory usage.
+func apiProxy(c *gin.Context) {
+	fileID := c.Query("fileID")
+	if fileID == "" {
+		c.String(http.StatusBadRequest, "no fileID")
+		return
+	}
+	file, err := b.FileByID(fileID)
+	if err != nil {
+		log.Warnln("apiProxy: FileByID error:", err)
+		c.String(http.StatusBadRequest, "bad fileID")
+		return
+	}
+	downloadURL := tele.DefaultApiURL + "/file/bot" + msbconf.BotToken + "/" + file.FilePath
+	resp, err := http.Get(downloadURL)
+	if err != nil {
+		log.Warnln("apiProxy: download error:", err)
+		c.String(http.StatusInternalServerError, "download failed")
+		return
+	}
+	defer resp.Body.Close()
+
+	contentType := "image/webp"
+	if strings.HasSuffix(file.FilePath, ".webm") {
+		contentType = "video/webm"
+	}
+	c.Header("Cache-Control", "public, max-age=86400")
+	c.DataFromReader(http.StatusOK, resp.ContentLength, contentType, resp.Body, nil)
 }
 
 func apiExport(c *gin.Context) {
@@ -140,33 +172,22 @@ func apiSS(c *gin.Context) {
 		SSName:  ss.Name,
 	}
 	sl := []webappStickerObject{}
-	ready := true
 	for i, s := range ss.Stickers {
-		var surl string
-		var fpath string
-		if s.Video {
-			fpath = filepath.Join(msbconf.WebappDataDir, hex, s.SetName, s.UniqueID+".webm")
-		} else {
-			fpath = filepath.Join(msbconf.WebappDataDir, hex, s.SetName, s.UniqueID+".webp")
-		}
-		surl, _ = url.JoinPath(msbconf.WebappUrl, "data", hex, s.SetName, s.UniqueID+".webp")
+		proxyUrl, _ := url.JoinPath(msbconf.WebappUrl, "api", "proxy")
+		surl := proxyUrl + "?fileID=" + s.FileID
 		sl = append(sl, webappStickerObject{
 			Id:       i + 1,
 			Emoji:    s.Emoji,
 			Surl:     surl,
 			UniqueID: s.UniqueID,
 			FileID:   s.FileID,
-			FilePath: fpath,
 		})
 		if i == 0 {
-			wss.SSThumb, _ = url.JoinPath(msbconf.WebappUrl, "data", hex, s.SetName, s.UniqueID+".png")
-		}
-		if st, _ := os.Stat(fpath); st == nil {
-			ready = false
+			wss.SSThumb = surl
 		}
 	}
 	wss.SS = sl
-	wss.Ready = ready
+	wss.Ready = true
 
 	jsonWSS, err := json.Marshal(wss)
 	if err != nil {
