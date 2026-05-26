@@ -111,18 +111,19 @@ func prepareKakaoStickers(ctx context.Context, ld *LineData, workDir string, nee
 			default:
 			}
 
-			// Animated URLs end with "-g" (animated GIF from Kakao CDN).
-			ext := ".png"
-			if strings.HasSuffix(l, "-g") {
-				ext = ".gif"
-			}
-			f := filepath.Join(workDir, path.Base(l)+ext)
-			err := httpDownload(l, f)
+			isAnimated := strings.HasSuffix(l, "-g")
+			// Save without extension so format is auto-detected from content.
+			// Kakao animated URLs ("-g" suffix) serve animated WebP, not GIF.
+			f := filepath.Join(workDir, path.Base(l))
+			err := httpDownloadWithReferer(l, f, "https://e.kakao.com/")
 			if err != nil {
+				log.Warnln("prepareKakaoStickers: download error:", err)
 				ld.Files[i].CError = err
+				ld.Files[i].Wg.Done()
+				continue
 			}
 			var cf string
-			if strings.HasSuffix(l, "-g") {
+			if isAnimated {
 				cf, _ = ConverMediaToTGStickerSmart(f, false)
 			} else {
 				cf, _ = IMToWebpTGStatic(f, false)
