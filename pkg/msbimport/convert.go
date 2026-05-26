@@ -241,7 +241,11 @@ func FFToWebmTGVideo(f string, isCustomEmoji bool) (string, error) {
 			log.Warnln("ffToWebm ERROR:", string(out))
 			//FFMPEG does not support animated webp.
 			//Convert to APNG first than WEBM.
-			if strings.Contains(string(out), "skipping unsupported chunk: ANIM") {
+			outStr := string(out)
+			webpUnsupported := strings.Contains(outStr, "skipping unsupported chunk: ANIM") ||
+				strings.Contains(outStr, "image data not found")
+			// Only attempt APNG fallback once (not if input is already APNG).
+			if webpUnsupported && !strings.HasSuffix(f, ".apng") {
 				log.Warnln("Trying to convert to APNG first.")
 				f2, err2 := IMToApng(f)
 				if err2 != nil {
