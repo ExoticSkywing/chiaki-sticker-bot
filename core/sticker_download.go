@@ -8,7 +8,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/panjf2000/ants/v2"
 	"github.com/star-39/moe-sticker-bot/pkg/msbimport"
 	tele "gopkg.in/telebot.v3"
 )
@@ -49,7 +48,7 @@ func downloadStickersAndSend(s *tele.Sticker, setID string, c tele.Context) erro
 		obj.wg.Add(1)
 		wDownloadStickerObject(obj)
 		if obj.err != nil {
-			return err
+			return obj.err
 		}
 		if s.Video || s.Animated {
 			zip := filepath.Join(workDir, secHex(4)+".zip")
@@ -71,10 +70,6 @@ func downloadStickersAndSend(s *tele.Sticker, setID string, c tele.Context) erro
 	pText, pMsg, _ := sendProcessStarted(ud, c, "")
 	cleanUserData(c.Sender().ID)
 	defer os.RemoveAll(workDir)
-	var wpDownloadSticker *ants.PoolWithFunc
-	wpDownloadSticker, _ = ants.NewPoolWithFunc(4, wDownloadStickerObject)
-
-	defer wpDownloadSticker.Release()
 	imageTime := time.Now()
 	var objs []*StickerDownloadObject
 	for index, s := range ss.Stickers {
@@ -88,7 +83,7 @@ func downloadStickersAndSend(s *tele.Sticker, setID string, c tele.Context) erro
 		}
 		obj.wg.Add(1)
 		objs = append(objs, obj)
-		go wpDownloadSticker.Invoke(obj)
+		go wpDownloadStickerSet.Invoke(obj)
 	}
 	for i, obj := range objs {
 		go editProgressMsg(i, len(ss.Stickers), "", pText, pMsg, c)
