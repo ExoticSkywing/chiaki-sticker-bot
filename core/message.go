@@ -26,7 +26,7 @@ Hi! I'm <b>Chiaki Sticker Bot</b>! Please:
 你好！歡迎使用 <b>Chiaki Sticker Bot</b>！請：
 • 使用 <b>/import</b> 或傳送 <b>LINE/Kakao 貼圖包分享連結</b>來匯入或下載。
 • 傳送 <b>Telegram 貼圖／連結／GIF</b> 來下載。
-• 傳送<b>關鍵字</b>來搜尋貼圖包。
+• 傳送 <b>/search</b> 來搜尋貼圖包。
 • 使用 <b>/create</b> 或 <b>/manage</b> 來創建或管理貼圖包和表情貼。
 • 傳送 <b>/command_list</b> 檢視所有可用指令。
 `
@@ -40,7 +40,7 @@ func sendCommandList(c tele.Context) error {
 <b>/download</b>  <b>/create</b>  <b>/manage</b> Telegram stickers.<code>
 下載、創建、管理Telegram貼圖包.</code>
 <b>/faq  /about  /changelog  /privacy</b><code>
-常見問題/關於/更新紀錄/私隱</code>
+常見問題/關於/更新紀錄/隱私</code>
 `
 
 	return c.Send(message, tele.ModeHTML, tele.NoPreview)
@@ -49,9 +49,9 @@ func sendCommandList(c tele.Context) error {
 func sendAboutMessage(c tele.Context) {
 	c.Send(fmt.Sprintf(`
 <b>Chiaki Sticker Bot</b>
-A self-hosted Telegram sticker bot — import LINE/Kakao stickers, create and manage your own sticker sets, and download stickers with ease.
+A Telegram sticker bot — import LINE/Kakao stickers, create and manage your own sticker sets, and download stickers with ease.
 
-自架的 Telegram 貼圖機器人，支援匯入 LINE/Kakao 貼圖、創建與管理貼圖包，以及下載貼圖。
+Telegram 貼圖機器人，支援匯入 LINE/Kakao 貼圖、創建與管理貼圖包，以及下載貼圖。
 
 <a href="https://github.com/akira02/chiaki-sticker-bot">GitHub: akira02/chiaki-sticker-bot</a>
 Forked from the great work of <a href="https://github.com/star-39/moe-sticker-bot">star-39/moe-sticker-bot</a>.
@@ -74,17 +74,17 @@ https://github.com/akira02/chiaki-sticker-bot</b>
 <b>Q: I got stucked! I can't quit from command!
 我卡住了! 我沒辦法從指令中退出!</b>
 A: Please send /quit to interrupt.
-請傳送 /quit 來中斷.
+請傳送 /quit 來中斷。
 
 <b>Q: Why ID has suffix: _by_%s ?
 為甚麼ID的末尾有: _by_%s ?</b>
 A: It's forced by Telegram, bot created sticker set must have its name in ID suffix.
-因為這個是Telegram的強制要求, 由bot創造的貼圖ID末尾必須有bot名字.
+因為這個是Telegram的強制要求, 由bot創造的貼圖ID末尾必須有bot名字。
 
 <b>Q: Who owns the sticker sets the bot created?
     BOT創造的貼圖包由誰所有?</b>
 A: It's you of course. You can manage them through /manage or Telegram's official @Stickers bot.
-    當然是您. 您可以通過 /manage 指令或者Telegram官方的 @Stickers 管理您的貼圖包.
+    當然是您。您可以通過 /manage 指令或者Telegram官方的 @Stickers 管理您的貼圖包。
 `, botName, botName), tele.ModeHTML)
 }
 
@@ -169,7 +169,7 @@ The bot server is physically located at Osaka,Japan. Local laws might apply.
 This bot is free and open source software, you can see https://github.com/akira02/chiaki-sticker-bot/blob/master/core/database.go
 to investigate how the bot store and process the stored data.
 
-<b>私隱聲明:</b>
+<b>隱私聲明:</b>
 本bot不會存儲或分析您的使用情況或行為。
 本bot不會採集或儲存任何用戶資訊，除非您使用了 /import 或 /create 指令且成功完成。
 
@@ -180,7 +180,7 @@ to investigate how the bot store and process the stored data.
 
 本bot儲存的所有資訊均經過加密。
 本bot不會分享任何儲存的資訊給任何人或實體或到任何地方。
-本bot伺服器的物理位置位於日本大阪。 當地法律可能適用。
+本bot伺服器的物理位置位於新加坡，將適用當地法律。
 本bot為自由開放原始碼軟體，請參閱 https://github.com/akira02/chiaki-sticker-bot/blob/master/core/database.go
 來了解bot如何儲存和處理儲存的資訊。
 `, tele.ModeHTML, tele.NoPreview)
@@ -197,8 +197,8 @@ Telegram requires emoji to and keywords for each sticker:
 • Press "Assign separately" to assign emoji and keywords one by one.
 • Send an emoji to do batch assign.
 Telegram要求為每張貼圖分別設定emoji和關鍵字:
-• 按下"分別設定"來為每個貼圖分別設定相應的emoji和關鍵字.
-• 傳送一個emoji來為全部貼圖設定成一樣的.
+• 按下"分別設定"來為每個貼圖分別設定相應的emoji和關鍵字。
+• 傳送一個emoji來為全部貼圖設定成一樣的。
 `, selector)
 }
 
@@ -349,8 +349,8 @@ func sendAskID(c tele.Context) error {
 	return c.Send(`
 Please send an ID for sticker set, used in share link.
 Can contain alphanum and underscore only.
-請設定貼圖包的ID, 用於分享連結.
-只可以含有英文,數字,下劃線.
+請設定貼圖包的ID, 用於分享連結。
+只可以含有英文,數字,下劃線。
 For example: 例如:
 <code>My_favSticker21</code>
 
@@ -522,12 +522,12 @@ func sendFatalError(err error, c tele.Context) {
 		errMsg = strings.ReplaceAll(errMsg, msbconf.BotToken, "***")
 		if strings.Contains(errMsg, "500") {
 			errMsg += "\nThis is an internal error of Telegram server, we could do nothing but wait for its recover. Please try again later.\n" +
-				"此錯誤為Telegram伺服器之內部錯誤, 無法由bot解決, 只能等候官方修復. 建議您稍後再嘗試一次.\n"
+				"Telegram 伺服器發生錯誤，請稍候再試\n"
 		}
 	}
 
 	c.Send("<b>Fatal error encounterd. Please try again. /start\n"+
-		"發生嚴重錯誤. 請您從頭再試一次. /start </b>\n\n"+
+		"發生錯誤，請點選 /start 重試。</b>\n\n"+
 		"You can report this error to https://github.com/akira02/chiaki-sticker-bot/issues\n\n"+
 		"<code>"+errMsg+"</code>", tele.ModeHTML, tele.NoPreview)
 }
@@ -557,7 +557,7 @@ Success. 成功完成. /start
 func sendProcessStarted(ud *UserData, c tele.Context, optMsg string) (string, *tele.Message, error) {
 	message := fmt.Sprintf(`
 Preparing stickers, please wait...
-正在準備貼圖, 請稍後...
+正在準備貼圖, 請稍候...
 
 LINE Cat: <code>%s</code>
 LINE ID: <code>%s</code>
@@ -661,7 +661,7 @@ func sendUserOwnedS(c tele.Context) error {
 func sendAskEditChoice(c tele.Context) error {
 	ud := users.data[c.Sender().ID]
 	selector := &tele.ReplyMarkup{}
-	btnAdd := selector.Data("Add sticker/增添貼圖", CB_ADD_STICKER)
+	btnAdd := selector.Data("Add sticker/添加貼圖", CB_ADD_STICKER)
 	btnDel := selector.Data("Delete sticker/刪除貼圖", CB_DELETE_STICKER)
 	btnDelset := selector.Data("Delete sticker set/刪除貼圖包", CB_DELETE_STICKER_SET)
 	btnChangeTitle := selector.Data("Change title/修改標題", CB_CHANGE_TITLE)
@@ -756,7 +756,7 @@ func sendIDOccupiedWarn(c tele.Context) error {
 
 func sendBadImportLinkWarn(c tele.Context) error {
 	return c.Send("Invalid import link, make sure its a LINE Store link or kakao store link. Try again or /quit\n"+
-		"無效的連結, 請檢視是否為LINE貼圖商店的連結, 或是kakao emoticon的連結.\n\n"+
+		"無效的連結, 請檢視是否為LINE貼圖商店的連結, 或是kakao emoticon的連結\n\n"+
 		"For example: 例如:\n"+
 		"<code>https://store.line.me/stickershop/product/7673/ja</code>\n"+
 		"<code>https://e.kakao.com/t/pretty-all-friends</code>", tele.ModeHTML)
@@ -764,7 +764,7 @@ func sendBadImportLinkWarn(c tele.Context) error {
 
 func sendNoSToManage(c tele.Context) error {
 	return c.Send("Sorry, you have not created any sticker set yet. You can use /import or /create .\n" +
-		"抱歉, 您還未創建過貼圖包, 您可以使用 /create 或 /import .")
+		"抱歉, 您還未創建過貼圖包, 您可以使用 /create 或 /import 來創建貼圖包")
 }
 
 func sendPromptStopAdding(c tele.Context) error {
@@ -772,7 +772,7 @@ func sendPromptStopAdding(c tele.Context) error {
 	btnDone := selector.Data("Done adding/停止添加", CB_DONE_ADDING)
 	selector.Inline(selector.Row(btnDone))
 	return c.Send("Continue sending files or press button below to stop adding.\n"+
-		"請繼續傳送檔案. 或者按下方按鈕來停止增添.", selector)
+		"請繼續傳送檔案. 或者按下方按鈕來停止", selector)
 }
 
 func replySFileOK(c tele.Context, count int) error {
@@ -781,7 +781,7 @@ func replySFileOK(c tele.Context, count int) error {
 	selector.Inline(selector.Row(btnDone))
 	return c.Reply(
 		fmt.Sprintf("File OK. Got %d stickers. Continue sending files or press button below to stop adding.\n"+
-			"檔案OK. 已收到%d份貼圖. 請繼續傳送檔案. 或者按下方按鈕來停止增添.", count, count), selector)
+			"檔案OK. 已收到%d份貼圖. 請繼續傳送檔案. 或者按下方按鈕來停止添加", count, count), selector)
 }
 
 func sendSEditOK(c tele.Context) error {
@@ -805,7 +805,7 @@ func sendAskSearchKeyword(c tele.Context) error {
 }
 
 func sendSearchNoResult(c tele.Context) error {
-	message := "Sorry, no result.\n抱歉, 搜尋沒有結果."
+	message := "Sorry, no result.\n沒有結果"
 	if c.Chat().Type == tele.ChatPrivate {
 		message += "\nTry again or /quit\n請試試別的關鍵字或 /quit"
 	}
@@ -857,13 +857,13 @@ eg:例如: <code>https://emoticon.kakao.com/items/lV6K2fWmU7CpXlHcP9-ysQJx9rg=?r
 
 func sendUseCommandToImport(c tele.Context) error {
 	return c.Send("Please use /create to create sticker set using your own photos and videos. /start\n" +
-		"請使用 /create 指令來使用自己的圖片和影片和創建貼圖包. /start")
+		"請使用 /create 指令來使用自己的圖片和影片和創建貼圖包 /start")
 }
 
 func sendOneStickerFailedToAdd(c tele.Context, pos int, err error) error {
 	return c.Reply(fmt.Sprintf(`
 Failed to add one sticker.
-一張貼圖添加失敗.
+一張貼圖添加失敗
 Index: %d
 Error: %s
 `, pos, err.Error()))
