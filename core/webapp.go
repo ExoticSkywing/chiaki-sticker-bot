@@ -26,7 +26,20 @@ import (
 
 func InitWebAppServer() {
 	gin.SetMode(gin.ReleaseMode)
-	r := gin.Default()
+	r := gin.New()
+	r.Use(gin.Recovery())
+	r.Use(gin.LoggerWithConfig(gin.LoggerConfig{
+		SkipPaths: []string{},
+		Formatter: func(param gin.LogFormatterParams) string {
+			if param.StatusCode >= 200 && param.StatusCode < 300 {
+				return ""
+			}
+			return fmt.Sprintf("[GIN] %s | %d | %s | %s | %s %s\n",
+				param.TimeStamp.Format("2006/01/02 - 15:04:05"),
+				param.StatusCode, param.Latency,
+				param.ClientIP, param.Method, param.Path)
+		},
+	}))
 
 	u, err := url.Parse(msbconf.WebappUrl)
 	if err != nil {
