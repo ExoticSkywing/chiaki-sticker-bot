@@ -5,7 +5,6 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
-	"strconv"
 	"strings"
 	"time"
 
@@ -178,41 +177,29 @@ func IMToApng(f string) (string, error) {
 // If the source is IMAGE, convert to WEBP,
 // If the source is VIDEO, convert to WEBM
 func ConverMediaToTGStickerSmart(f string, isCustomEmoji bool) (string, error) {
-	var isVideo bool
-	//Determine whether the media is Video or Image by counting frames.
-	identifyBin := IDENTIFY_BIN
-	identifyArgs := IDENTIFY_ARGS
-	identifyArgs = append(identifyArgs, "-format", "%n", f)
-	identifyOut, err := exec.Command(identifyBin, identifyArgs...).CombinedOutput()
+	// Count frames by running identify without -format and counting output lines.
+	// This is more reliable than -format "%n" for animated WebP, which older
+	// ImageMagick versions may misreport as 1 frame.
+	identifyOut, err := exec.Command(IDENTIFY_BIN, append(IDENTIFY_ARGS, f)...).CombinedOutput()
 	if err != nil {
-		log.Warnln("ConverMediaToTGStickerSmart ERROR:", string(identifyOut))
-		return "", err
-	}
-	//IM might get buggy and return insane frame count causing overflow.
-	//Trim it.
-	identifyOutString := string(identifyOut)
-	if len(identifyOutString) > 5 {
-		identifyOutString = identifyOutString[:3]
-	}
-
-	frameCount, err := strconv.Atoi(identifyOutString)
-	if err != nil {
-		log.Warnln("ConverMediaToTGStickerSmart Atoi ERROR:", err)
+		log.Warnln("ConverMediaToTGStickerSmart identify ERROR:", string(identifyOut))
 		return "", err
 	}
 
-	if frameCount > 1 {
-		isVideo = true
-	} else if frameCount == 0 {
+	lines := strings.Split(strings.TrimSpace(string(identifyOut)), "\n")
+	frameCount := len(lines)
+
+	if frameCount == 0 {
 		log.Warnln("ConverMediaToTGStickerSmart ERROR: Frame count is zero.")
 		return "", errors.New("frame count is zero")
 	}
 
-	if isVideo {
+	log.Debugf("ConverMediaToTGStickerSmart: %s frameCount=%d", f, frameCount)
+
+	if frameCount > 1 {
 		return FFToWebmTGVideo(f, isCustomEmoji)
-	} else {
-		return IMToWebpTGStatic(f, isCustomEmoji)
 	}
+	return IMToWebpTGStatic(f, isCustomEmoji)
 }
 
 func FFToWebmTGVideo(f string, isCustomEmoji bool) (string, error) {
@@ -248,7 +235,11 @@ func FFToWebmTGVideo(f string, isCustomEmoji bool) (string, error) {
 			//Convert to APNG first than WEBM.
 			if strings.Contains(string(out), "skipping unsupported chunk: ANIM") {
 				log.Warnln("Trying to convert to APNG first.")
-				f2, _ := IMToApng(f)
+				f2, err2 := IMToApng(f)
+				if err2 != nil {
+					log.Warnln("IMToApng ERROR:", err2)
+					return pathOut, err2
+				}
 				return FFToWebmTGVideo(f2, isCustomEmoji)
 			}
 			return pathOut, err
@@ -298,7 +289,7 @@ func FFToGif(f string) (string, error) {
 	bin := FFMPEG_BIN
 	args = append(args, decoder...)
 	args = append(args, "-i", f, "-hide_banner",
-		"-lavfi", "split[a][b];[a]palettegen[p];[b][p]paletteuse=dither=atkinson",
+		"-lavfi", "split[a][b];[a]palettegen=reserve_transparent=1[p];[b][p]paletteuse=alpha_threshold=128:dither=atkinson",
 		"-gifflags", "-transdiff", "-gifflags", "-offsetting",
 		"-loglevel", "error", "-y", pathOut)
 
