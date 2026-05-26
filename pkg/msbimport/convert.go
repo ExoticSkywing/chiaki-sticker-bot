@@ -181,6 +181,8 @@ func IMToApng(f string) (string, error) {
 	if st, stErr := os.Stat(pathOut); stErr != nil || st.Size() == 0 {
 		log.Warnln("imToApng: output file missing or empty, ImageMagick output:", string(out))
 		return "", errors.New("imToApng: output file missing or empty")
+	} else {
+		log.Infof("imToApng: OK, %d bytes -> %s", st.Size(), pathOut)
 	}
 	return pathOut, nil
 }
