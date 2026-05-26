@@ -16,19 +16,19 @@ import (
 
 func sendStartMessage(c tele.Context) error {
 	message := `
-Hi! I'm a sticker bot forked from <a href="https://github.com/akira02/chiaki-sticker-bot">moe-sticker-bot</a>! Please:
-• Send <b>LINE/Kakao sticker share link</b> to import or download.
+Hi! I'm <b>Chiaki Sticker Bot</b>! Please:
+• Use <b>/import</b> or send <b>LINE/Kakao sticker share link</b> to import or download.
 • Send <b>Telegram sticker/link/GIF</b> to download.
 • Send <b>keywords</b> to search sticker sets.
-• Tap to <b>/create</b> or <b>/manage</b> sticker set and CustomEmoji.
-• Tap to check all available <b>/command_list</b>.
+• Use <b>/create</b> or <b>/manage</b> to create or manage sticker sets and CustomEmoji.
+• Check all available commands: <b>/command_list</b>.
 
-你好! 歡迎使用<a href="https://github.com/akira02/chiaki-sticker-bot">萌萌貼圖BOT</a>! 請：
-• 傳送<b>LINE/kakao貼圖包的分享連結</b>來匯入或下載.
-• 傳送<b>Telegram貼圖/連結/GIF</b>來下載.
-• 傳送<b>關鍵字</b>來搜尋貼圖包.
-• 傳送 <b>/create</b> 或 <b>/manage</b> 來創建或管理貼圖包和表情貼。
-• 傳送 <b>/command_list</b> 檢視所有可用指令.
+你好！歡迎使用 <b>Chiaki Sticker Bot</b>！請：
+• 使用 <b>/import</b> 或傳送 <b>LINE/Kakao 貼圖包分享連結</b>來匯入或下載。
+• 傳送 <b>Telegram 貼圖／連結／GIF</b> 來下載。
+• 傳送<b>關鍵字</b>來搜尋貼圖包。
+• 使用 <b>/create</b> 或 <b>/manage</b> 來創建或管理貼圖包和表情貼。
+• 傳送 <b>/command_list</b> 檢視所有可用指令。
 `
 	return c.Send(message, tele.ModeHTML, tele.NoPreview)
 }
@@ -48,22 +48,20 @@ func sendCommandList(c tele.Context) error {
 
 func sendAboutMessage(c tele.Context) {
 	c.Send(fmt.Sprintf(`
-<b>Please star this project on Github if you like this bot!
-如果您喜歡這個bot, 歡迎在Github給本專案標Star喔!
-https://github.com/akira02/chiaki-sticker-bot</b>
+<b>Chiaki Sticker Bot</b>
+A self-hosted Telegram sticker bot — import LINE/Kakao stickers, create and manage your own sticker sets, and download stickers with ease.
+
+自架的 Telegram 貼圖機器人，支援匯入 LINE/Kakao 貼圖、創建與管理貼圖包，以及下載貼圖。
+
+<a href="https://github.com/akira02/chiaki-sticker-bot">GitHub: akira02/chiaki-sticker-bot</a>
 Forked from the great work of <a href="https://github.com/star-39/moe-sticker-bot">star-39/moe-sticker-bot</a>.
-Thank you @StickerGroup for feedbacks and advices!
 <code>
 This free(as in freedom) software is released under the GPLv3 License.
 Comes with ABSOLUTELY NO WARRANTY! All rights reserved.
-本BOT為免費提供的自由軟體, 您可以自由使用/分發, 惟無任何保用(warranty)!	
-本軟體授權於通用公眾授權條款(GPL)v3, 保留所有權利.
-</code><b>
-Please send /start to start using
-請傳送 /start 來開始
-</b><code>
-Version:版本: %s
+本 BOT 為免費提供的自由軟體，您可以自由使用/分發，惟無任何保用(warranty)！
+本軟體授權於通用公眾授權條款(GPL)v3，保留所有權利。
 </code>
+Version／版本: %s
 `, BOT_VERSION), tele.ModeHTML)
 }
 
