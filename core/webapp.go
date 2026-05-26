@@ -138,7 +138,6 @@ func apiSS(c *gin.Context) {
 	sn := c.Query("sn")
 	uid := c.Query("uid")
 	qid := c.Query("qid")
-	hex := c.Query("hex")
 	var ss *tele.StickerSet
 	var err error
 
