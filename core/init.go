@@ -3,6 +3,7 @@ package core
 import (
 	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 	"runtime/debug"
@@ -141,15 +142,17 @@ func initBot(conf ConfigTemplate) *tele.Bot {
 	url := tele.DefaultApiURL
 
 	pref := tele.Settings{
-		URL:         url,
-		Token:       msbconf.BotToken,
-		Poller:      poller,
+		URL:    url,
+		Token:  msbconf.BotToken,
+		Poller: poller,
+		// Use a longer timeout for file uploads (sticker sets can be large).
+		Client:      &http.Client{Timeout: 3 * time.Minute},
 		Synchronous: false,
 		// Genrally, issues are tackled inside each state, only fatal error should be returned to framework.
 		// onError will terminate current session and log to terminal.
 		OnError: onError,
 	}
-	log.WithField("token", msbconf.BotToken).Info("Attempting to initialize...")
+	log.Info("Attempting to initialize bot...")
 	b, err := tele.NewBot(pref)
 	if err != nil {
 		log.Fatal(err)
