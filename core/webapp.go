@@ -12,6 +12,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -309,15 +310,24 @@ func apiEditMove(c *gin.Context) {
 }
 
 func apiInitData(c *gin.Context) {
-	//We must verify the initData before using it
-	queryID := c.PostForm("query_id")
-	authDate := c.PostForm("auth_date")
-	user := c.PostForm("user")
+	// We must verify the initData before using it.
+	// Per Telegram docs, data-check-string is built from ALL fields except "hash",
+	// sorted alphabetically and joined with "\n".
+	if err := c.Request.ParseForm(); err != nil {
+		c.String(http.StatusBadRequest, "parse form error")
+		return
+	}
 	hash := c.PostForm("hash")
-	dataCheckString := strings.Join([]string{
-		"auth_date=" + authDate,
-		"query_id=" + queryID,
-		"user=" + user}, "\n")
+	var pairs []string
+	for key, values := range c.Request.PostForm {
+		if key == "hash" {
+			continue
+		}
+		pairs = append(pairs, key+"="+values[0])
+	}
+	sort.Strings(pairs)
+	dataCheckString := strings.Join(pairs, "\n")
+
 	if !validateHMAC(dataCheckString, hash) {
 		log.Warning("WebApp DCS HMAC failed, corrupt or attack?")
 		c.String(http.StatusBadRequest, "data_check_string HMAC validation failed!!")

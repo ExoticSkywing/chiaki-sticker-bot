@@ -1,4 +1,4 @@
-# chiaki-sticker-bot
+# [@chiaki_sticker_bot](https://t.me/chiaki_sticker_bot)
 
 A self-hosted Telegram sticker bot, forked from [@moe_sticker_bot](https://github.com/star-39/moe-sticker-bot) by [star-39](https://github.com/star-39).
 
