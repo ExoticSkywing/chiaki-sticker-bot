@@ -13,33 +13,34 @@ import (
 
 func cleanUserDataAndDir(uid int64) bool {
 	log.WithField("uid", uid).Debugln("Purging userdata...")
-	_, exist := users.data[uid]
+	users.mu.Lock()
+	ud, exist := users.data[uid]
 	if exist {
-		os.RemoveAll(users.data[uid].workDir)
-		users.mu.Lock()
+		workDir := ud.workDir
 		delete(users.data, uid)
 		users.mu.Unlock()
+		os.RemoveAll(workDir)
 		log.WithField("uid", uid).Debugln("Userdata purged from map and disk.")
 		return true
-	} else {
-		log.WithField("uid", uid).Debugln("Userdata does not exisst, do nothing.")
-		return false
 	}
+	users.mu.Unlock()
+	log.WithField("uid", uid).Debugln("Userdata does not exist, do nothing.")
+	return false
 }
 
 func cleanUserData(uid int64) bool {
 	log.WithField("uid", uid).Debugln("Purging userdata...")
+	users.mu.Lock()
 	_, exist := users.data[uid]
 	if exist {
-		users.mu.Lock()
 		delete(users.data, uid)
 		users.mu.Unlock()
 		log.WithField("uid", uid).Debugln("Userdata purged from map.")
 		return true
-	} else {
-		log.WithField("uid", uid).Debugln("Userdata does not exist, do nothing.")
-		return false
 	}
+	users.mu.Unlock()
+	log.WithField("uid", uid).Debugln("Userdata does not exist, do nothing.")
+	return false
 }
 
 func initUserData(c tele.Context, command string, state string) *UserData {
@@ -67,12 +68,13 @@ func initUserData(c tele.Context, command string, state string) *UserData {
 }
 
 func getState(c tele.Context) (string, string) {
+	users.mu.Lock()
 	ud, exist := users.data[c.Sender().ID]
+	users.mu.Unlock()
 	if exist {
 		return ud.command, ud.state
-	} else {
-		return "", ""
 	}
+	return "", ""
 }
 
 func checkState(next tele.HandlerFunc) tele.HandlerFunc {
@@ -107,7 +109,9 @@ func setState(c tele.Context, state string) {
 	if c == nil {
 		return
 	}
+	users.mu.Lock()
 	ud, ok := users.data[c.Sender().ID]
+	users.mu.Unlock()
 	if !ok {
 		return
 	}
