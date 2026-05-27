@@ -46,13 +46,16 @@ func initHTTPServer() *http.Server {
 		c.Status(http.StatusOK)
 	})
 
-	// Telegram webhook endpoint
-	if webhookPoller != nil {
-		r.POST("/webhook", func(c *gin.Context) {
-			webhookPoller.ServeHTTP(c.Writer, c.Request)
-		})
-		log.Info("Webhook endpoint registered at /webhook")
-	}
+	// Telegram webhook endpoint — always register the route;
+	// webhookPoller is set by initBot() before initHTTPServer() is called,
+	// so it will be non-nil when real Telegram requests arrive.
+	r.POST("/webhook", func(c *gin.Context) {
+		if webhookPoller == nil {
+			c.Status(http.StatusServiceUnavailable)
+			return
+		}
+		webhookPoller.ServeHTTP(c.Writer, c.Request)
+	})
 
 	// WebApp routes (only if configured)
 	if msbconf.WebappUrl != "" {
