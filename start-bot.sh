@@ -21,5 +21,5 @@ exec moe-sticker-bot \
     --admin_uid=207946916 \
     --webapp_url=https://chiaki-sticker-bot.fly.dev/webapp \
     --webapp_data_dir=/data/webapp \
-    --webhook_url=https://chiaki-sticker-bot.fly.dev/webhook \
+    --webhook_url=$WEBHOOK_URL \
     --webhook_secret=$WEBHOOK_SECRET

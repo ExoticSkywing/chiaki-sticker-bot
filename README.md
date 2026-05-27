@@ -47,6 +47,7 @@ fly launch --no-deploy
 # 3. Set secrets
 fly secrets set \
   BOT_TOKEN="your-bot-token" \
+  WEBHOOK_URL="https://your-app-name.fly.dev/webhook" \
   WEBHOOK_SECRET="$(openssl rand -hex 32)"
 
 # 4. Deploy
