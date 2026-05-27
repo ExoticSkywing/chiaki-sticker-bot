@@ -93,7 +93,7 @@ func submitStickerSetAuto(createSet bool, c tele.Context) error {
 
 		go editProgressMsg(index, len(ud.stickerData.stickers), "", pText, teleMsg, c)
 
-		err = commitSingleticker(index, flCount, false, sf, c, ssName, ssType)
+		err = commitSingleticker(index, flCount, false, sf, c, ud.stickerData, ssName, ssType)
 		if err != nil {
 			log.Warnln("execAutoCommit: a sticker failed to add.", err)
 			sendOneStickerFailedToAdd(c, index, err)
@@ -173,7 +173,7 @@ func submitStickerManual(createSet bool, pos int, emojis []string, keywords []st
 				<-ud.commitChans[pos-1]
 			}
 
-			err = commitSingleticker(pos, &ud.stickerData.flCount, false, sf, c, name, ssType)
+			err = commitSingleticker(pos, &ud.stickerData.flCount, false, sf, c, ud.stickerData, name, ssType)
 			if err != nil {
 				sendOneStickerFailedToAdd(c, pos, err)
 				log.Warnln("execEmojiAssign: a sticker failed to add: ", err)
@@ -317,7 +317,16 @@ func createStickerSetBatch(sfs []*StickerFile, c tele.Context, name string, titl
 //
 // flCount counts the total flood limit for entire sticker set.
 // pos is for logging only.
-func commitSingleticker(pos int, flCount *int, safeMode bool, sf *StickerFile, c tele.Context, name string, ssType string) error {
+// effectiveRecipient returns the sticker set owner as recipient when admin
+// is managing another user's set, so Telegram API calls use the correct user_id.
+func effectiveRecipient(c tele.Context, sd *StickerData) tele.Recipient {
+	if sd != nil && sd.ownerUID != 0 && sd.ownerUID != c.Sender().ID {
+		return &tele.User{ID: sd.ownerUID}
+	}
+	return c.Recipient()
+}
+
+func commitSingleticker(pos int, flCount *int, safeMode bool, sf *StickerFile, c tele.Context, sd *StickerData, name string, ssType string) error {
 	var err error
 	var floodErr tele.FloodError
 	var file string
@@ -349,7 +358,7 @@ func commitSingleticker(pos int, flCount *int, safeMode bool, sf *StickerFile, c
 			input.Format = guessInputStickerFormat(file)
 		}
 
-		err = c.Bot().AddSticker(c.Recipient(), input, name)
+		err = c.Bot().AddSticker(effectiveRecipient(c, sd), input, name)
 		if err == nil {
 			return nil
 		}
@@ -399,7 +408,7 @@ func commitSingleticker(pos int, flCount *int, safeMode bool, sf *StickerFile, c
 				return err
 			} else {
 				log.Warnln("returned video_long, attempting safe mode.")
-				return commitSingleticker(pos, flCount, true, sf, c, name, ssType)
+				return commitSingleticker(pos, flCount, true, sf, c, sd, name, ssType)
 			}
 		} else if strings.Contains(err.Error(), "invalid sticker emojis") {
 			log.Warn("commitSticker: invalid emoji, resetting to a star emoji and retrying...")

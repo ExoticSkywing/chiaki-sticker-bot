@@ -297,6 +297,19 @@ func queryUserS(uid int64) []UserStickerQ {
 	return usq
 }
 
+func queryStickerSetOwner(tgID string) int64 {
+	if db == nil {
+		return 0
+	}
+	var uid int64
+	err := db.QueryRow("SELECT user_id FROM stickers WHERE tg_id=?", tgID).Scan(&uid)
+	if err != nil {
+		log.Errorln("queryStickerSetOwner: db.QueryRow error:", err)
+		return 0
+	}
+	return uid
+}
+
 func matchUserS(uid int64, id string) bool {
 	if db == nil {
 		return false

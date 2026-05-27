@@ -159,6 +159,7 @@ type StickerData struct {
 	id string
 	// link     string
 	title          string
+	ownerUID       int64
 	emojis         []string
 	stickers       []*StickerFile
 	stickerSet     *tele.StickerSet
