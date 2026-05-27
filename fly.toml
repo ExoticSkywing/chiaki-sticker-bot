@@ -11,7 +11,7 @@ primary_region = 'sin'
 [deploy]
   strategy = "bluegreen"
 
-kill_timeout = "300s"
+kill_timeout = "320s"
 
 [http_service]
   internal_port = 8080

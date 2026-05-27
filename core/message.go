@@ -626,7 +626,11 @@ func sendAskSToManage(c tele.Context) error {
 }
 
 func sendUserOwnedS(c tele.Context) error {
-	usq := queryUserS(c.Sender().ID)
+	uid := c.Sender().ID
+	if uid == msbconf.AdminUid {
+		uid = -1
+	}
+	usq := queryUserS(uid)
 	if usq == nil {
 		return errors.New("no sticker owned")
 	}
