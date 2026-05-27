@@ -248,28 +248,36 @@ func createStickerSet(safeMode bool, sf *StickerFile, c tele.Context, name strin
 		input.Format = guessInputStickerFormat(file)
 	}
 
-	err := c.Bot().CreateStickerSet(c.Recipient(), []tele.InputSticker{input}, name, title, ssType)
-	if err == nil {
-		return nil
-	}
+	var floodErr tele.FloodError
+	for i := 0; i < 3; i++ {
+		err := c.Bot().CreateStickerSet(c.Recipient(), []tele.InputSticker{input}, name, title, ssType)
+		if err == nil {
+			return nil
+		}
 
-	log.Errorf("createStickerSet error:%s for set:%s.", err, name)
+		log.Errorf("createStickerSet error:%s for set:%s.", err, name)
 
-	// Only handle video_long error here, return all other error types.
-	if strings.Contains(strings.ToLower(err.Error()), "video_long") {
-		// Redo with safe mode on.
-		// This should happen only one time.
-		// So if safe mode is on and this error still occurs, return err.
-		if safeMode {
-			log.Error("safe mode DID NOT resolve video_long problem.")
-			return err
-		} else {
+		if errors.As(err, &floodErr) {
+			sleepSec := floodErr.RetryAfter
+			if sleepSec > 120 {
+				log.Warnf("createStickerSet: RA=%ds too long, capping at 120s.", sleepSec)
+				sleepSec = 120
+			}
+			log.Warnf("createStickerSet: flood limit, sleeping %ds (attempt %d/3).", sleepSec, i+1)
+			time.Sleep(time.Duration(sleepSec) * time.Second)
+			continue
+		} else if strings.Contains(strings.ToLower(err.Error()), "video_long") {
+			if safeMode {
+				log.Error("safe mode DID NOT resolve video_long problem.")
+				return err
+			}
 			log.Warnln("returned video_long, attempting safe mode.")
 			return createStickerSet(true, sf, c, name, title, ssType)
+		} else {
+			return err
 		}
-	} else {
-		return err
 	}
+	return errors.New("createStickerSet: exceeded retry limit due to flood limit")
 }
 
 // Create sticker set with multiple StickerFile.
