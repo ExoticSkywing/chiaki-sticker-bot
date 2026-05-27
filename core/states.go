@@ -173,7 +173,9 @@ func confirmImport(c tele.Context, wantEmoji bool) error {
 	ud := initUserData(c, "import", "waitSTitle")
 	_, err := msbimport.ParseImportLink(findLink(c.Message().ReplyTo.Text), ud.lineData)
 	if err == nil {
-		go insertEvent(c.Sender().ID, c.Sender().Username, c.Sender().FirstName, "import_"+ud.lineData.Store)
+		go insertEvent(c.Sender().ID, c.Sender().Username,
+			strings.TrimSpace(c.Sender().FirstName+" "+c.Sender().LastName),
+			"import_"+ud.lineData.Store, ud.lineData.Id, "attempt")
 	}
 	if err != nil {
 		return err
@@ -228,7 +230,6 @@ func trySearchKeyword(c tele.Context) bool {
 	if len(lines) == 0 {
 		return false
 	}
-	go insertEvent(c.Sender().ID, c.Sender().Username, c.Sender().FirstName, "search")
 	sendSearchResult(20, lines, c)
 	return true
 }
