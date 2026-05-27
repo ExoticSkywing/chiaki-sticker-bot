@@ -81,7 +81,7 @@ func initHTTPServer() *http.Server {
 	}
 
 	srv := &http.Server{
-		Addr:    ":8080",
+		Addr:    ":8081",
 		Handler: r,
 	}
 	go func() {
@@ -89,7 +89,7 @@ func initHTTPServer() *http.Server {
 			log.Fatalln("HTTP server error:", err)
 		}
 	}()
-	log.Info("HTTP server listening on :8080")
+	log.Info("HTTP server listening on :8081")
 	return srv
 }
 
