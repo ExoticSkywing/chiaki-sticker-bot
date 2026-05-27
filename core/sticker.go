@@ -387,12 +387,12 @@ func commitSingleticker(pos int, flCount *int, safeMode bool, sf *StickerFile, c
 				log.Warnln("returned video_long, attempting safe mode.")
 				return commitSingleticker(pos, flCount, true, sf, c, name, ssType)
 			}
-		} else if strings.Contains(err.Error(), "400") {
-			// return remaining 400 BAD REQUEST immediately to parent without retry.
-			return err
 		} else if strings.Contains(err.Error(), "invalid sticker emojis") {
 			log.Warn("commitSticker: invalid emoji, resetting to a star emoji and retrying...")
 			input.Emojis = []string{"⭐️"}
+		} else if strings.Contains(err.Error(), "400") {
+			// return remaining 400 BAD REQUEST immediately to parent without retry.
+			return err
 		} else {
 			// Handle unknown error here.
 			// We simply retry for 2 more times with 5 sec interval.
