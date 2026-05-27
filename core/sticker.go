@@ -201,6 +201,17 @@ func finalizeSubmitStickerManual(c tele.Context, createSet bool, ud *UserData) e
 	return nil
 }
 
+// safeModeInput returns the best file to re-encode for safe mode.
+// Prefer cPath (already-converted webm) so ffmpeg can trim it directly,
+// rather than oPath which may be an extensionless animated WebP that
+// ffmpeg cannot decode.
+func safeModeInput(sf *StickerFile) string {
+	if sf.cPath != "" {
+		return sf.cPath
+	}
+	return sf.oPath
+}
+
 // Create sticker set if needed.
 func createStickerSet(safeMode bool, sf *StickerFile, c tele.Context, name string, title string, ssType string) error {
 	var file string
@@ -212,7 +223,7 @@ func createStickerSet(safeMode bool, sf *StickerFile, c tele.Context, name strin
 	sf.wg.Wait()
 
 	if safeMode {
-		file, _ = msbimport.FFToWebmSafe(sf.oPath, isCustomEmoji)
+		file, _ = msbimport.FFToWebmSafe(safeModeInput(sf), isCustomEmoji)
 	} else {
 		file = sf.cPath
 	}
@@ -303,7 +314,7 @@ func commitSingleticker(pos int, flCount *int, safeMode bool, sf *StickerFile, c
 	sf.wg.Wait()
 
 	if safeMode {
-		file, _ = msbimport.FFToWebmSafe(sf.oPath, isCustomEmoji)
+		file, _ = msbimport.FFToWebmSafe(safeModeInput(sf), isCustomEmoji)
 	} else {
 		file = sf.cPath
 	}
