@@ -60,7 +60,7 @@ value: -1
 
 var db *sql.DB
 
-const DB_VER = "2"
+const DB_VER = "3"
 
 func initDB(dbname string) error {
 	addr := msbconf.DbAddr
@@ -135,6 +135,11 @@ func checkUpgradeDatabase(queriedDbVer string) {
 		db.Exec("UPDATE properties SET value=? WHERE name=?", "2", "DB_VER")
 		log.Info("Upgraded DB_VER from 1 to 2")
 	}
+	if queriedDbVer == "1" || queriedDbVer == "2" {
+		db.Exec("CREATE TABLE IF NOT EXISTS events (id BIGINT AUTO_INCREMENT PRIMARY KEY, user_id BIGINT NOT NULL, username VARCHAR(64), first_name VARCHAR(64), action VARCHAR(32) NOT NULL, ts DATETIME DEFAULT CURRENT_TIMESTAMP, INDEX idx_user (user_id), INDEX idx_ts (ts))")
+		db.Exec("UPDATE properties SET value=? WHERE name=?", "3", "DB_VER")
+		log.Info("Upgraded DB_VER to 3: added events table")
+	}
 }
 
 func createMariadb(dsn *mysql.Config, dbname string) error {
@@ -149,6 +154,7 @@ func createMariadb(dsn *mysql.Config, dbname string) error {
 	db.Exec("CREATE TABLE line (line_id VARCHAR(128), tg_id VARCHAR(128), tg_title VARCHAR(255), line_link VARCHAR(512), auto_emoji BOOL)")
 	db.Exec("CREATE TABLE properties (name VARCHAR(128) PRIMARY KEY, value VARCHAR(128))")
 	db.Exec("CREATE TABLE stickers (user_id BIGINT, tg_id VARCHAR(128), tg_title VARCHAR(255), timestamp BIGINT)")
+	db.Exec("CREATE TABLE events (id BIGINT AUTO_INCREMENT PRIMARY KEY, user_id BIGINT NOT NULL, username VARCHAR(64), first_name VARCHAR(64), action VARCHAR(32) NOT NULL, ts DATETIME DEFAULT CURRENT_TIMESTAMP, INDEX idx_user (user_id), INDEX idx_ts (ts))")
 	db.Exec("INSERT properties (name, value) VALUES (?, ?)", "last_line_dedup_index", "-1")
 	db.Exec("INSERT properties (name, value) VALUES (?, ?)", "DB_VER", DB_VER)
 	log.Infoln("Mariadb initialized with DB_VER :", DB_VER)
@@ -426,3 +432,16 @@ func curateDatabase() error {
 // 	log.Infoln("getLastLineDedupIndex", value)
 // 	return index
 // }
+
+func insertEvent(userID int64, username string, firstName string, action string) {
+	if db == nil {
+		return
+	}
+	_, err := db.Exec(
+		"INSERT INTO events (user_id, username, first_name, action) VALUES (?, ?, ?, ?)",
+		userID, username, firstName, action,
+	)
+	if err != nil {
+		log.Debugln("insertEvent error:", err)
+	}
+}
