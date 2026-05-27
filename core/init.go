@@ -23,6 +23,11 @@ func Init(conf ConfigTemplate) {
 	initLogrus()
 	msbimport.InitConvert()
 	b = initBot(conf)
+
+	// Start HTTP server immediately so fly.io health checks pass
+	// while DB and other slow init (TiDB wakeup) happen in the background.
+	srv := initHTTPServer()
+
 	initWorkspace(b)
 	initWorkersPool()
 	go initGoCron()
@@ -58,9 +63,6 @@ func Init(conf ConfigTemplate) {
 	b.Handle(tele.OnDocument, handleMessage)
 	b.Handle(tele.OnPhoto, handleMessage)
 	b.Handle(tele.OnCallback, handleMessage, autoRespond, sanitizeCallback)
-
-	// Always start HTTP server (health check + webhook if configured + WebApp if configured)
-	srv := initHTTPServer()
 
 	// Set up signal handler
 	quit := make(chan os.Signal, 1)
