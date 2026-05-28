@@ -9,6 +9,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime/debug"
+	"strings"
 	"syscall"
 	"time"
 
@@ -166,6 +167,18 @@ func onError(err error, c tele.Context) {
 	}()
 	if c == nil {
 		return
+	}
+	// Record the failure into events DB so admins can audit it.
+	if ud := udFromCtx(c); ud != nil && ud.command != "" {
+		action := ud.command
+		packID := ud.stickerData.id
+		if ud.command == "import" && ud.lineData != nil {
+			action = "import_" + ud.lineData.Store
+			packID = ud.lineData.Id
+		}
+		go insertEvent(c.Sender().ID, c.Sender().Username,
+			strings.TrimSpace(c.Sender().FirstName+" "+c.Sender().LastName),
+			action, packID, "fail: "+err.Error())
 	}
 	sendFatalError(err, c)
 	cleanUserDataAndDir(c.Sender().ID)
