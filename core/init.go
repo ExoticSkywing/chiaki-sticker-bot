@@ -149,9 +149,15 @@ func endManageSession(c tele.Context) {
 }
 
 func onError(err error, c tele.Context) {
-	log.Error("User encountered fatal error!")
-	log.Errorln("Raw error:", err)
-	log.Errorln(string(debug.Stack()))
+	var apiErr *tele.Error
+	if errors.As(err, &apiErr) {
+		// Telegram API errors are user-facing (bad input, etc.), no stack trace needed.
+		log.Warnf("Telegram API error (code %d): %s", apiErr.Code, apiErr.Description)
+	} else {
+		log.Error("User encountered fatal error!")
+		log.Errorln("Raw error:", err)
+		log.Errorln(string(debug.Stack()))
+	}
 
 	defer func() {
 		if r := recover(); r != nil {

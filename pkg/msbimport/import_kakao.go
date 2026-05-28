@@ -249,6 +249,10 @@ func fetchKakaoDetailsFromShareLink(link string) (string, string, error) {
 	if err != nil {
 		return "", "", err
 	}
-	kakaoID := path.Base(redirLink)
+	redirURL, err := url.Parse(redirLink)
+	if err != nil {
+		return "", "", err
+	}
+	kakaoID := path.Base(redirURL.Path)
 	return eid, kakaoID, nil
 }
