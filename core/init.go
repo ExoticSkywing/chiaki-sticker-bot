@@ -76,7 +76,13 @@ func Init(conf ConfigTemplate) {
 	// Block until signal
 	<-quit
 	log.Info("SIGTERM received, draining active sessions...")
-	b.Stop()
+
+	// Shutdown HTTP server first so no new Telegram webhooks are accepted.
+	// We intentionally don't call b.Stop() — telebot v3.99.9 has a
+	// "close of closed channel" panic in Webhook.waitForStop on shutdown.
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	srv.Shutdown(ctx)
 
 	done := make(chan struct{})
 	go func() {
@@ -89,10 +95,6 @@ func Init(conf ConfigTemplate) {
 	case <-time.After(5 * time.Minute):
 		log.Warn("Shutdown timeout (5m), forcing exit.")
 	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	srv.Shutdown(ctx)
 }
 
 // Recover returns a middleware that recovers a panic happened in
