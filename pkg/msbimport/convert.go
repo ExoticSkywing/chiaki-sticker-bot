@@ -321,7 +321,44 @@ func ConverMediaToTGStickerSmart(f string, isCustomEmoji bool) (string, error) {
 	return IMToWebpTGStatic(f, isCustomEmoji)
 }
 
+// isAnimatedWebp reports whether f is an animated WebP by inspecting the
+// container header. Animated files use the extended VP8X chunk with the
+// animation flag (0x02) set. ffmpeg's native webp decoder cannot decode these
+// (it skips the ANIM/ANMF chunks), so callers must convert via APNG first.
+func isAnimatedWebp(f string) bool {
+	file, err := os.Open(f)
+	if err != nil {
+		return false
+	}
+	defer file.Close()
+
+	var hdr [21]byte
+	if _, err := io.ReadFull(file, hdr[:]); err != nil {
+		return false
+	}
+	if string(hdr[0:4]) != "RIFF" || string(hdr[8:12]) != "WEBP" {
+		return false
+	}
+	// VP8X (extended format) is required for animation; flags byte is at offset 20.
+	if string(hdr[12:16]) != "VP8X" {
+		return false
+	}
+	return hdr[20]&0x02 != 0
+}
+
 func FFToWebmTGVideo(f string, isCustomEmoji bool) (string, error) {
+	// ffmpeg cannot decode animated WebP, so convert to APNG up front rather
+	// than letting the first ffmpeg attempt fail and relying on the fallback.
+	if !strings.HasSuffix(f, ".apng") && isAnimatedWebp(f) {
+		log.Debugln("FFToWebmTGVideo: animated WebP detected, converting to APNG first.")
+		f2, err := IMToApng(f)
+		if err != nil {
+			log.Warnln("IMToApng ERROR:", err)
+			return "", err
+		}
+		f = f2
+	}
+
 	pathOut := f + ".webm"
 	bin := FFMPEG_BIN
 	baseargs := []string{}
@@ -337,6 +374,7 @@ func FFToWebmTGVideo(f string, isCustomEmoji bool) (string, error) {
 	// -tile-columns 0 -tile-rows 0: disable VP9 tiling (saves additional memory)
 	baseargs = append(baseargs, "-threads", "1", "-pix_fmt", "yuva420p", "-c:v", "libvpx-vp9", "-cpu-used", "8", "-lag-in-frames", "0", "-tile-columns", "0", "-tile-rows", "0")
 
+	var lastErr error
 	for rc := 0; rc < 4; rc++ {
 		rcargs := []string{}
 		switch rc {
@@ -353,33 +391,25 @@ func FFToWebmTGVideo(f string, isCustomEmoji bool) (string, error) {
 		args = append(args, []string{"-to", "00:00:03", "-an", "-y", pathOut}...)
 		out, err := exec.Command(bin, args...).CombinedOutput()
 		if err != nil {
-			log.Warnln("ffToWebm ERROR:", string(out))
-			//FFMPEG does not support animated webp.
-			//Convert to APNG first than WEBM.
-			outStr := string(out)
-			webpUnsupported := strings.Contains(outStr, "skipping unsupported chunk: ANIM") ||
-				strings.Contains(outStr, "image data not found")
-			// Only attempt APNG fallback once (not if input is already APNG).
-			if webpUnsupported && !strings.HasSuffix(f, ".apng") {
-				log.Warnln("Trying to convert animated WebP to APNG first.")
-				f2, err2 := IMToApng(f)
-				if err2 != nil {
-					log.Warnln("IMToApng ERROR:", err2)
-					return pathOut, err2
-				}
-				return FFToWebmTGVideo(f2, isCustomEmoji)
-			}
-			return pathOut, err
+			// Don't bail on the first failure; let the remaining rc attempts run
+			// in case the error was transient.
+			log.Warnf("ffToWebm ERROR (rc=%d), retrying:\n%s", rc, string(out))
+			lastErr = err
+			continue
 		}
 		stat, err := os.Stat(pathOut)
 		if err != nil {
-			return pathOut, err
+			lastErr = err
+			continue
 		}
 		if stat.Size() > 255*KiB {
 			continue
-		} else {
-			return pathOut, err
 		}
+		return pathOut, nil
+	}
+	if lastErr != nil {
+		log.Errorln("FFToWebmTGVideo: all attempts failed:", lastErr)
+		return pathOut, lastErr
 	}
 	log.Errorln("FFToWebmTGVideo: unable to compress below 256KiB:", pathOut)
 	return pathOut, errors.New("FFToWebmTGVideo: unable to compress below 256KiB")
