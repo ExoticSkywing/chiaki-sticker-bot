@@ -449,7 +449,7 @@ func FFToGif(f string) (string, error) {
 	args = append(args, decoder...)
 	args = append(args, ffmpegQ...)
 	args = append(args, "-i", f,
-		"-lavfi", "split[a][b];[a]palettegen=reserve_transparent=1[p];[b][p]paletteuse=alpha_threshold=128:dither=atkinson",
+		"-lavfi", "split[a][b];[a]palettegen=reserve_transparent=1[p];[b][p]paletteuse=alpha_threshold=128:dither=sierra2_4a",
 		"-gifflags", "-transdiff", "-gifflags", "-offsetting",
 		"-y", pathOut)
 
