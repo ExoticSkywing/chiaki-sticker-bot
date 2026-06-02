@@ -480,7 +480,9 @@ func FFToGif(f string) (string, error) {
 		"-gifflags", "-transdiff", "-gifflags", "-offsetting",
 		"-y", pathOut)
 
-	out, err := exec.Command(bin, args...).CombinedOutput()
+	ctx, cancel := context.WithTimeout(context.Background(), ffmpegTimeout)
+	defer cancel()
+	out, err := niceCommandContext(ctx, bin, args...).CombinedOutput()
 	if err != nil {
 		log.Warnf("ffToGif ERROR:\n%s", string(out))
 		return "", err
