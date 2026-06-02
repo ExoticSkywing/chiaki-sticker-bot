@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -151,12 +153,31 @@ func endManageSession(c tele.Context) {
 	os.RemoveAll(path)
 }
 
+// Transient network errors (connection reset, broken pipe, EOF, i/o timeout)
+// are common when talking to the Telegram API and recover on their own.
+func isTransientNetworkError(err error) bool {
+	if errors.Is(err, io.EOF) || errors.Is(err, syscall.ECONNRESET) ||
+		errors.Is(err, syscall.EPIPE) || errors.Is(err, syscall.ETIMEDOUT) {
+		return true
+	}
+	var netErr net.Error
+	if errors.As(err, &netErr) && netErr.Timeout() {
+		return true
+	}
+	return false
+}
+
 func onError(err error, c tele.Context) {
 	var apiErr *tele.Error
-	if errors.As(err, &apiErr) {
+	switch {
+	case errors.As(err, &apiErr):
 		// Telegram API errors are user-facing (bad input, etc.), no stack trace needed.
 		log.Warnf("Telegram API error (code %d): %s", apiErr.Code, apiErr.Description)
-	} else {
+	case isTransientNetworkError(err):
+		// Transient network blip, no stack trace and no point resending. Will recover.
+		log.Warnln("Transient network error talking to Telegram:", err)
+		return
+	default:
 		log.Error("User encountered fatal error!")
 		log.Errorln("Raw error:", err)
 		log.Errorln(string(debug.Stack()))
