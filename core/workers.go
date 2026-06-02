@@ -57,28 +57,35 @@ func wDownloadStickerObject(i interface{}) {
 	var f string
 	var cf string
 	var err error
+	var cverr error
 	if obj.sticker.Video {
 		f = obj.dest + ".webm"
 		err = b.Download(&obj.sticker.File, f)
-		if obj.needConvert {
-			cf, _ = msbimport.FFToGif(f)
+		if err == nil && obj.needConvert {
+			cf, cverr = msbimport.FFToGif(f)
 		}
 	} else if obj.sticker.Animated {
 		f = obj.dest + ".tgs"
 		err = b.Download(&obj.sticker.File, f)
-		if obj.needConvert {
-			cf, _ = msbimport.RlottieToGIF(f)
+		if err == nil && obj.needConvert {
+			cf, cverr = msbimport.RlottieToGIF(f)
 		}
 	} else {
 		f = obj.dest + ".webp"
 		err = b.Download(&obj.sticker.File, f)
-		if obj.needConvert {
-			cf, _ = msbimport.IMToPng(f)
+		if err == nil && obj.needConvert {
+			cf, cverr = msbimport.IMToPng(f)
 		}
 	}
 	if err != nil {
 		log.Warnln("download: error downloading sticker:", err)
 		obj.err = err
+		return
+	}
+	// Conversion errors were previously swallowed, producing empty/broken zips.
+	if cverr != nil {
+		log.Warnln("download: error converting sticker:", cverr)
+		obj.err = cverr
 		return
 	}
 

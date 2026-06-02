@@ -1,6 +1,7 @@
 package core
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -85,13 +86,26 @@ func downloadStickersAndSend(s *tele.Sticker, setID string, c tele.Context) erro
 		objs = append(objs, obj)
 		go wpDownloadStickerSet.Invoke(obj)
 	}
+	failed := 0
 	for i, obj := range objs {
 		go editProgressMsg(i, len(ss.Stickers), "", pText, pMsg, c)
 		obj.wg.Wait()
+		// Skip stickers that failed to download/convert instead of packing empty files.
+		if obj.err != nil {
+			failed++
+			continue
+		}
 		imageTime = imageTime.Add(time.Duration(i+1) * time.Second)
 		msbimport.SetImageTime(obj.of, imageTime)
 		flist = append(flist, obj.of)
 		cflist = append(cflist, obj.cf)
+	}
+	if len(cflist) == 0 {
+		return errors.New("all stickers failed to download or convert")
+	}
+	if failed > 0 {
+		c.Send(fmt.Sprintf("Note: %d of %d stickers failed to convert and were skipped.\n"+
+			"注意: 有 %d 張貼圖轉檔失敗已略過。", failed, len(ss.Stickers), failed))
 	}
 	go editProgressMsg(0, 0, "Uploading...", pText, pMsg, c)
 
@@ -126,7 +140,10 @@ func downloadGifToZip(c tele.Context) error {
 	if err != nil {
 		return err
 	}
-	cf, _ := msbimport.FFToGif(f)
+	cf, ferr := msbimport.FFToGif(f)
+	if ferr != nil {
+		return ferr
+	}
 	cf2 := strings.ReplaceAll(cf, "animation_MP4.mp4", "animation_GIF.gif")
 	os.Rename(cf, cf2)
 	zip := filepath.Join(workDir, secHex(4)+".zip")
