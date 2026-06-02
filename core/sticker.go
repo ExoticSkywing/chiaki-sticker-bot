@@ -46,6 +46,19 @@ func submitStickerSetAuto(createSet bool, c tele.Context) error {
 		s.keywords = MSB_DEFAULT_STICKER_KEYWORDS
 	}
 
+	// Surface conversion progress. The sf.wg.Wait() barriers inside the commit
+	// path below would otherwise stay silent for minutes while animated stickers
+	// transcode, making the bot look stuck on "Preparing stickers".
+	convTotal := len(ud.stickerData.stickers)
+	for i, sf := range ud.stickerData.stickers {
+		sf.wg.Wait()
+		// Edit only at milestones to stay well under Telegram's rate limit.
+		if i == 0 || i+1 == convTotal || (convTotal >= 4 && (i+1)%(convTotal/4) == 0) {
+			prog := "<code>Converting / 轉檔中...\n       " + strconv.Itoa(i+1) + " of " + strconv.Itoa(convTotal) + "</code>"
+			editProgressMsg(0, 0, prog, pText, teleMsg, c)
+		}
+	}
+
 	//Try batch create.
 	var batchCreateSuccess bool
 	if createSet {

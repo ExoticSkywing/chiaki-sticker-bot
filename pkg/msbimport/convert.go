@@ -2,6 +2,7 @@ package msbimport
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -14,6 +15,23 @@ import (
 
 	log "github.com/sirupsen/logrus"
 )
+
+// Hard ceiling for a single ffmpeg invocation. With a pool size of 1 a hung
+// ffmpeg would otherwise block every queued conversion indefinitely.
+const ffmpegTimeout = 120 * time.Second
+
+// CPU-heavy encodes (VP9) run niced so the HTTP/health-check goroutine keeps
+// getting CPU on the shared single-core VM. `nice` exec-replaces itself with the
+// target binary (same PID), so CommandContext timeouts still reach ffmpeg.
+const niceLevel = "19"
+
+func niceCommand(bin string, args ...string) *exec.Cmd {
+	return exec.Command("nice", append([]string{"-n", niceLevel, bin}, args...)...)
+}
+
+func niceCommandContext(ctx context.Context, bin string, args ...string) *exec.Cmd {
+	return exec.CommandContext(ctx, "nice", append([]string{"-n", niceLevel, bin}, args...)...)
+}
 
 var FFMPEG_BIN = "ffmpeg"
 var BSDTAR_BIN = "bsdtar"
@@ -347,6 +365,13 @@ func isAnimatedWebp(f string) bool {
 }
 
 func FFToWebmTGVideo(f string, isCustomEmoji bool) (string, error) {
+	// Input may be gone if the session was torn down (cancel/error) while this
+	// conversion was still queued. Bail fast instead of running 4 pointless rc retries.
+	if _, err := os.Stat(f); err != nil {
+		log.Warnln("FFToWebmTGVideo: input file gone, skipping conversion:", f)
+		return "", err
+	}
+
 	// ffmpeg cannot decode animated WebP, so convert to APNG up front rather
 	// than letting the first ffmpeg attempt fail and relying on the fallback.
 	if !strings.HasSuffix(f, ".apng") && isAnimatedWebp(f) {
@@ -389,7 +414,9 @@ func FFToWebmTGVideo(f string, isCustomEmoji bool) (string, error) {
 		}
 		args := append(baseargs, rcargs...)
 		args = append(args, []string{"-to", "00:00:03", "-an", "-y", pathOut}...)
-		out, err := exec.Command(bin, args...).CombinedOutput()
+		ctx, cancel := context.WithTimeout(context.Background(), ffmpegTimeout)
+		out, err := niceCommandContext(ctx, bin, args...).CombinedOutput()
+		cancel()
 		if err != nil {
 			// Don't bail on the first failure; let the remaining rc attempts run
 			// in case the error was transient.
@@ -431,7 +458,7 @@ func FFToWebmSafe(f string, isCustomEmoji bool) (string, error) {
 		"-c:v", "libvpx-vp9", "-cpu-used", "5", "-minrate", "50k", "-b:v", "200k", "-maxrate", "300k",
 		"-to", "00:00:02.800", "-r", "30", "-an", "-y", pathOut)
 
-	out, err := exec.Command(bin, args...).CombinedOutput()
+	out, err := niceCommand(bin, args...).CombinedOutput()
 	if err != nil {
 		log.Warnf("FFToWebmSafe ERROR:\n%s", string(out))
 	}
