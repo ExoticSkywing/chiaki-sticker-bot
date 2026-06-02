@@ -17,9 +17,15 @@ func cleanUserDataAndDir(uid int64) bool {
 	ud, exist := users.data[uid]
 	if exist {
 		workDir := ud.workDir
+		cancel := ud.cancel
 		delete(users.data, uid)
 		activeSessionsWg.Done()
 		users.mu.Unlock()
+		// Cancel in-flight work (e.g. conversion goroutines) before wiping the dir,
+		// otherwise queued workers keep running against a half-deleted directory.
+		if cancel != nil {
+			cancel()
+		}
 		os.RemoveAll(workDir)
 		log.WithField("uid", uid).Debugln("Userdata purged from map and disk.")
 		return true
