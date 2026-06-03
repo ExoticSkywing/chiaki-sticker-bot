@@ -20,6 +20,11 @@ import (
 // ffmpeg would otherwise block every queued conversion indefinitely.
 const ffmpegTimeout = 120 * time.Second
 
+// Telegram rejects video stickers longer than 3s. Sources beyond this can skip
+// the first regular encode and go straight to safe mode, while sources at or
+// below the limit still get a normal encode so we avoid trimming unnecessarily.
+const telegramVideoMaxDuration = 3.0
+
 // CPU-heavy encodes (VP9) run niced so the HTTP/health-check goroutine keeps
 // getting CPU on the shared single-core VM. `nice` exec-replaces itself with the
 // target binary (same PID), so CommandContext timeouts still reach ffmpeg.
@@ -34,6 +39,7 @@ func niceCommandContext(ctx context.Context, bin string, args ...string) *exec.C
 }
 
 var FFMPEG_BIN = "ffmpeg"
+var FFPROBE_BIN = "ffprobe"
 var BSDTAR_BIN = "bsdtar"
 var CONVERT_BIN = "convert"
 var IDENTIFY_BIN = "identify"
@@ -97,6 +103,9 @@ func CheckDeps() []string {
 
 	if _, err := exec.LookPath(FFMPEG_BIN); err != nil {
 		unfoundBins = append(unfoundBins, FFMPEG_BIN)
+	}
+	if _, err := exec.LookPath(FFPROBE_BIN); err != nil {
+		unfoundBins = append(unfoundBins, FFPROBE_BIN)
 	}
 	if _, err := exec.LookPath(BSDTAR_BIN); err != nil {
 		unfoundBins = append(unfoundBins, BSDTAR_BIN)
@@ -270,6 +279,118 @@ func webpFPS(f string) float64 {
 	return 100.0 / delay
 }
 
+func mediaDurationSeconds(f string) (float64, bool) {
+	if duration, ok := ffprobeDurationSeconds(f); ok {
+		return duration, true
+	}
+	return identifyDurationSeconds(f)
+}
+
+func ffprobeDurationSeconds(f string) (float64, bool) {
+	out, err := exec.Command(FFPROBE_BIN,
+		"-v", "error",
+		"-show_entries", "format=duration",
+		"-of", "default=nw=1:nk=1",
+		f,
+	).Output()
+	if err == nil {
+		if duration, ok := parsePositiveFloat(strings.TrimSpace(string(out))); ok {
+			return duration, true
+		}
+	}
+
+	out, err = exec.Command(FFPROBE_BIN,
+		"-v", "error",
+		"-count_packets",
+		"-select_streams", "v:0",
+		"-show_entries", "stream=duration,nb_read_packets,nb_read_frames,avg_frame_rate,r_frame_rate",
+		"-of", "default=nw=1",
+		f,
+	).Output()
+	if err != nil {
+		return 0, false
+	}
+
+	values := map[string]string{}
+	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+		parts := strings.SplitN(line, "=", 2)
+		if len(parts) == 2 {
+			values[parts[0]] = strings.TrimSpace(parts[1])
+		}
+	}
+	if duration, ok := parsePositiveFloat(values["duration"]); ok {
+		return duration, true
+	}
+
+	frameCount, ok := parsePositiveFloat(values["nb_read_packets"])
+	if !ok {
+		frameCount, ok = parsePositiveFloat(values["nb_read_frames"])
+	}
+	if !ok {
+		return 0, false
+	}
+
+	fps, ok := parseFrameRate(values["avg_frame_rate"])
+	if !ok {
+		fps, ok = parseFrameRate(values["r_frame_rate"])
+	}
+	if !ok {
+		return 0, false
+	}
+	return frameCount / fps, true
+}
+
+func identifyDurationSeconds(f string) (float64, bool) {
+	out, err := exec.Command(IDENTIFY_BIN,
+		append(IDENTIFY_ARGS, "-format", "%T\n", f)...,
+	).Output()
+	if err != nil || len(out) == 0 {
+		return 0, false
+	}
+
+	var ticks float64
+	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+		delay, ok := parsePositiveFloat(strings.TrimSpace(line))
+		if ok {
+			ticks += delay
+		}
+	}
+	if ticks <= 0 {
+		return 0, false
+	}
+	return ticks / 100.0, true
+}
+
+func parsePositiveFloat(s string) (float64, bool) {
+	if s == "" || s == "N/A" {
+		return 0, false
+	}
+	v, err := strconv.ParseFloat(s, 64)
+	if err != nil || v <= 0 {
+		return 0, false
+	}
+	return v, true
+}
+
+func parseFrameRate(s string) (float64, bool) {
+	if s == "" || s == "0/0" || s == "N/A" {
+		return 0, false
+	}
+	parts := strings.SplitN(s, "/", 2)
+	if len(parts) == 1 {
+		return parsePositiveFloat(s)
+	}
+	num, ok := parsePositiveFloat(parts[0])
+	if !ok {
+		return 0, false
+	}
+	den, ok := parsePositiveFloat(parts[1])
+	if !ok {
+		return 0, false
+	}
+	return num / den, true
+}
+
 // IMToGif converts an animated WebP (no extension) to GIF using ImageMagick.
 // GIF is palette-based (8-bit) so decoded frame memory is ~4x smaller than
 // APNG (RGBA), making it more suitable for memory-constrained environments.
@@ -385,6 +506,11 @@ func FFToWebmTGVideo(f string, isCustomEmoji bool) (string, error) {
 			return "", err
 		}
 		f = f2
+	}
+
+	if duration, ok := mediaDurationSeconds(f); ok && duration > telegramVideoMaxDuration {
+		log.Debugf("FFToWebmTGVideo: source duration %.3fs exceeds Telegram limit %.3fs, using safe mode.", duration, telegramVideoMaxDuration)
+		return FFToWebmSafe(f, isCustomEmoji)
 	}
 
 	pathOut := f + ".webm"
