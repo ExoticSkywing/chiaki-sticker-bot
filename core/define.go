@@ -35,6 +35,7 @@ const (
 	CB_OK_DN              = "yesd"
 	CB_BYE                = "bye"
 	CB_MANAGE             = "manage"
+	CB_ADMIN_MANAGE       = "adminmanage"
 	CB_DONE_ADDING        = "done"
 	CB_YES                = "yes"
 	CB_NO                 = "no"
@@ -109,6 +110,7 @@ type UserData struct {
 	webAppQID        string
 	webAppWorkerPool *ants.PoolWithFunc
 	lastContext      tele.Context
+	adminManage      bool
 }
 
 // Map for users, identified by user id.
