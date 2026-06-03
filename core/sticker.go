@@ -221,14 +221,14 @@ func finalizeSubmitStickerManual(c tele.Context, createSet bool, ud *UserData) e
 }
 
 // safeModeInput returns the best file to re-encode for safe mode.
-// Prefer cPath (already-converted webm) so ffmpeg can trim it directly,
-// rather than oPath which may be an extensionless animated WebP that
-// ffmpeg cannot decode.
+// Prefer the original source so transparent APNG/PNG inputs keep their alpha
+// instead of relying on ffmpeg to decode alpha from an already-encoded WebM.
+// TGS still needs the converted file because ffmpeg cannot read it directly.
 func safeModeInput(sf *StickerFile) string {
-	if sf.cPath != "" {
-		return sf.cPath
+	if sf.oPath != "" && !strings.EqualFold(filepath.Ext(sf.oPath), ".tgs") {
+		return sf.oPath
 	}
-	return sf.oPath
+	return sf.cPath
 }
 
 // Create sticker set if needed.

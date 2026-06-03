@@ -448,17 +448,27 @@ func FFToWebmTGVideo(f string, isCustomEmoji bool) (string, error) {
 // This function will be called if Telegram's API rejected our webm.
 // It is normally due to overlength or bad FPS rate.
 func FFToWebmSafe(f string, isCustomEmoji bool) (string, error) {
+	if !strings.HasSuffix(f, ".apng") && isAnimatedWebp(f) {
+		log.Debugln("FFToWebmSafe: animated WebP detected, converting to APNG first.")
+		f2, err := IMToApng(f)
+		if err != nil {
+			log.Warnln("IMToApng ERROR:", err)
+			return "", err
+		}
+		f = f2
+	}
+
 	pathOut := f + ".webm"
 	bin := FFMPEG_BIN
 	args := append([]string{}, ffmpegQ...)
 	args = append(args, "-i", f)
 	if isCustomEmoji {
-		args = append(args, "-vf", "scale=100:100:force_original_aspect_ratio=decrease")
+		args = append(args, "-vf", "scale=100:100:force_original_aspect_ratio=decrease:flags=lanczos,pad=100:100:-1:-1:color=black@0,format=yuva420p")
 	} else {
-		args = append(args, "-vf", "scale=512:512:force_original_aspect_ratio=decrease:flags=lanczos")
+		args = append(args, "-vf", "scale=512:512:force_original_aspect_ratio=decrease:flags=lanczos,pad=512:512:-1:-1:color=black@0,format=yuva420p")
 	}
 	args = append(args, "-threads", "1", "-pix_fmt", "yuva420p",
-		"-c:v", "libvpx-vp9", "-cpu-used", "5", "-minrate", "50k", "-b:v", "200k", "-maxrate", "300k",
+		"-c:v", "libvpx-vp9", "-cpu-used", "5", "-auto-alt-ref", "0", "-minrate", "50k", "-b:v", "200k", "-maxrate", "300k",
 		"-to", "00:00:02.800", "-r", "30", "-an", "-y", pathOut)
 
 	out, err := niceCommand(bin, args...).CombinedOutput()
