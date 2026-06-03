@@ -115,13 +115,14 @@ func CheckDeps() []string {
 func IMToWebpTGStatic(f string, isCustomEmoji bool) (string, error) {
 	pathOut := f + ".webp"
 	bin := CONVERT_BIN
-	args := CONVERT_ARGS
+	args := append([]string{}, CONVERT_ARGS...)
+	args = append(args, f+"[0]", "-background", "none", "-alpha", "on", "-filter", "Lanczos")
 	if isCustomEmoji {
-		args = append(args, "-resize", "100x100", "-gravity", "center", "-extent", "100x100", "-background", "none")
+		args = append(args, "-resize", "100x100", "-gravity", "center", "-extent", "100x100")
 	} else {
 		args = append(args, "-resize", "512x512")
 	}
-	args = append(args, "-filter", "Lanczos", "-define", "webp:lossless=true", f+"[0]", pathOut)
+	args = append(args, "-define", "webp:lossless=true", pathOut)
 
 	out, err := exec.Command(bin, args...).CombinedOutput()
 	if err != nil {
@@ -136,8 +137,8 @@ func IMToWebpTGStatic(f string, isCustomEmoji bool) (string, error) {
 
 	// 100x100 should never exceed 255KIB, no need for extra check.
 	if st.Size() > 255*KiB {
-		args := CONVERT_ARGS
-		args = append(args, "-resize", "512x512", "-filter", "Lanczos", f+"[0]", pathOut)
+		args := append([]string{}, CONVERT_ARGS...)
+		args = append(args, f+"[0]", "-background", "none", "-alpha", "on", "-filter", "Lanczos", "-resize", "512x512", pathOut)
 		exec.Command(bin, args...).CombinedOutput()
 	}
 
@@ -148,12 +149,14 @@ func IMToWebpTGStatic(f string, isCustomEmoji bool) (string, error) {
 func IMToWebpWA(f string) error {
 	pathOut := f
 	bin := CONVERT_BIN
-	args := CONVERT_ARGS
 	qualities := []string{"75", "50"}
 	for _, q := range qualities {
-		args = append(args, "-define", "webp:quality="+q,
+		args := append([]string{}, CONVERT_ARGS...)
+		args = append(args,
+			f+"[0]", "-background", "none", "-alpha", "on", "-filter", "Lanczos",
+			"-define", "webp:quality="+q,
 			"-resize", "512x512", "-gravity", "center", "-extent", "512x512",
-			"-background", "none", f+"[0]", pathOut)
+			pathOut)
 
 		out, err := exec.Command(bin, args...).CombinedOutput()
 		if err != nil {
@@ -688,11 +691,12 @@ func IMToPNGThumb(f string) error {
 	}
 
 	bin := CONVERT_BIN
-	args := CONVERT_ARGS
+	args := append([]string{}, CONVERT_ARGS...)
 	args = append(args,
+		f+"[0]", "-background", "none", "-alpha", "on",
 		"-resize", "96x96",
-		"-gravity", "center", "-extent", "96x96", "-background", "none",
-		f+"[0]", pathOut)
+		"-gravity", "center", "-extent", "96x96",
+		pathOut)
 
 	out, err := exec.Command(bin, args...).CombinedOutput()
 	if err != nil {
