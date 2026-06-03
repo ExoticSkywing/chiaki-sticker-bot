@@ -50,6 +50,8 @@ func handleMessage(c tele.Context) error {
 		}
 	case "manage":
 		switch state {
+		case "waitSManage":
+			err = waitSManage(c)
 		case "waitCbEditChoice":
 			err = waitCbEditChoice(c)
 		case "waitSFile":
@@ -93,6 +95,8 @@ func handleNoSession(c tele.Context) error {
 			return downloadStickersAndSend(nil, id, c)
 		case CB_MANAGE:
 			return statePrepareSManage(c)
+		case CB_ADMIN_MANAGE:
+			return enterAdminManage(c)
 		case CB_OK_IMPORT:
 			return confirmImport(c, false)
 		case CB_OK_IMPORT_EMOJI:
@@ -243,19 +247,56 @@ func stateProcessing(c tele.Context) error {
 	return c.Send("Processing, please wait... 作業中, 請稍後... /quit")
 }
 
+func enterAdminManage(c tele.Context) error {
+	if c.Sender().ID != msbconf.AdminUid {
+		return c.Send("Sorry, admin only.")
+	}
+	ud := initUserData(c, "manage", "waitSManage")
+	ud.adminManage = true
+	err := sendAdminManagedS(c)
+	if err != nil {
+		return sendNoSToManage(c)
+	}
+	return sendAskSToManage(c)
+}
+
+func waitSManage(c tele.Context) error {
+	ud := udFromCtx(c)
+	if ud == nil {
+		return sendNoSessionWarning(c)
+	}
+	if c.Message().Sticker != nil {
+		return prepareSManage(c, c.Message().Sticker.SetName, ud.adminManage)
+	}
+
+	link, tp := findLinkWithType(c.Message().Text)
+	if tp == LINK_TG {
+		return prepareSManage(c, path.Base(link), ud.adminManage)
+	}
+	return sendAskSToManage(c)
+}
+
 func statePrepareSManage(c tele.Context) error {
-	var ud *UserData
 	if c.Message().ReplyTo == nil {
 		return errors.New("unknown error: no reply to")
 	}
 
-	ud = initUserData(c, "manage", "waitCbEditChoice")
 	id := getSIDFromMessage(c.Message().ReplyTo)
+	return prepareSManage(c, id, false)
+}
+
+func prepareSManage(c tele.Context, id string, adminManage bool) error {
+	ud := udFromCtx(c)
+	if ud == nil {
+		ud = initUserData(c, "manage", "waitCbEditChoice")
+	} else {
+		ud.command = "manage"
+		ud.state = "waitCbEditChoice"
+	}
 	ud.stickerData.id = id
 
 	ud.lastContext = c
-	// Allow admin to manage all sticker sets.
-	if c.Sender().ID == msbconf.AdminUid {
+	if adminManage && c.Sender().ID == msbconf.AdminUid {
 		ud.stickerData.ownerUID = queryStickerSetOwner(ud.stickerData.id)
 		goto NEXT
 	}

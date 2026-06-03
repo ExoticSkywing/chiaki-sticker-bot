@@ -619,6 +619,15 @@ SEND:
 }
 
 func sendAskSToManage(c tele.Context) error {
+	if c.Sender().ID == msbconf.AdminUid {
+		selector := &tele.ReplyMarkup{}
+		btnAdminManage := selector.Data("Admin manage", CB_ADMIN_MANAGE)
+		selector.Inline(selector.Row(btnAdminManage))
+		return c.Send("Send a sticker from the sticker set that want to edit,\n"+
+			"or send its share link.\n\n"+
+			"您想要修改哪個貼圖包? 請傳送那個貼圖包內任意一張貼圖,\n"+
+			"或者是它的分享連結.", selector)
+	}
 	return c.Send("Send a sticker from the sticker set that want to edit,\n" +
 		"or send its share link.\n\n" +
 		"您想要修改哪個貼圖包? 請傳送那個貼圖包內任意一張貼圖,\n" +
@@ -626,10 +635,14 @@ func sendAskSToManage(c tele.Context) error {
 }
 
 func sendUserOwnedS(c tele.Context) error {
-	uid := c.Sender().ID
-	if uid == msbconf.AdminUid {
-		uid = -1
-	}
+	return sendStickerSetList(c, c.Sender().ID, "You own following stickers:")
+}
+
+func sendAdminManagedS(c tele.Context) error {
+	return sendStickerSetList(c, -1, "Admin manageable stickers:")
+}
+
+func sendStickerSetList(c tele.Context, uid int64, header string) error {
 	usq := queryUserS(uid)
 	if usq == nil {
 		return errors.New("no sticker owned")
@@ -652,12 +665,12 @@ func sendUserOwnedS(c tele.Context) error {
 	if len(entries) > 30 {
 		eChunks := chunkSlice(entries, 30)
 		for _, eChunk := range eChunks {
-			message := "You own following stickers:\n"
+			message := header + "\n"
 			message += strings.Join(eChunk, "\n")
 			c.Send(message, tele.ModeHTML)
 		}
 	} else {
-		message := "You own following stickers:\n"
+		message := header + "\n"
 		message += strings.Join(entries, "\n")
 		c.Send(message, tele.ModeHTML)
 	}
