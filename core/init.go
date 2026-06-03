@@ -170,6 +170,13 @@ func isTransientNetworkError(err error) bool {
 func onError(err error, c tele.Context) {
 	var apiErr *tele.Error
 	switch {
+	case errors.Is(err, context.Canceled):
+		// Expected when a user cancels an in-flight import/conversion.
+		log.Debugln("Context canceled:", err)
+		return
+	case errors.Is(err, context.DeadlineExceeded):
+		log.Warnln("Context deadline exceeded:", err)
+		return
 	case errors.As(err, &apiErr):
 		// Telegram API errors are user-facing (bad input, etc.), no stack trace needed.
 		log.Warnf("Telegram API error (code %d): %s", apiErr.Code, apiErr.Description)
