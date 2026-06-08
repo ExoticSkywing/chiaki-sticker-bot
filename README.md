@@ -56,6 +56,19 @@ fly deploy
 
 The bot listens on `:8080` for both the Telegram webhook (`POST /webhook`) and the fly.io health check (`GET /health`).
 
+### Low-memory tuning
+
+The default settings are conservative for 256MB fly.io machines. Animated LINE/Kakao imports are memory-heavy because they use ImageMagick and ffmpeg/VP9.
+
+The built-in defaults are:
+
+* `MSB_IMPORT_CONCURRENCY` — maximum number of sticker import jobs running at once. Default: `1`. Keep this at `1` on 256MB machines; raising it can cause OOM when multiple users import animated packs.
+* `MSB_FFMPEG_CONCURRENCY` — maximum number of ffmpeg processes running at once. Default: `1`.
+* `MSB_IM_MEMORY_LIMIT` — ImageMagick memory limit for animated conversion paths. Default: `64MiB`. Set to `0` to disable.
+* `MSB_IM_MAP_LIMIT` — ImageMagick memory-map limit for animated conversion paths. Default: `128MiB`. Set to `0` to disable.
+* `MSB_KAKAO_FAST_PIPE` — set to `1` to use the faster one-pass Kakao animated WebP pipe path. Default is off; the default two-pass frame-sequence path is slower but gives better motion quality under Telegram's 255KiB video sticker limit.
+
+
 ### Optional: Enable database (for /search and usage tracking)
 
 Use a MySQL-compatible service such as [TiDB Cloud Serverless](https://tidbcloud.com) (free tier available):
