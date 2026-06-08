@@ -1,14 +1,13 @@
 ---
 name: Bug report 問題回報
 about: Create a report to help us improve
-title: "[BUG]"
+title: "[BUG] "
 labels: bug
 assignees: ''
 
 ---
 
 ## Bug report 問題回報
-
 <!-- 在提交問題前，請確認你已經透過 /quit /start 重置bot，並檢查是否有類似的 Issue 已被開立。
 Before submitting, please ensure you reset the bot using /quit /start and check if a similar issue has already been reported.-->
 
