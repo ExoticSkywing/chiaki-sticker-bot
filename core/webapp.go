@@ -43,6 +43,10 @@ func initHTTPServer() *http.Server {
 
 	// Health check for fly.io blue-green
 	r.GET("/health", func(c *gin.Context) {
+		if shuttingDown.Load() {
+			c.String(http.StatusServiceUnavailable, "shutting down")
+			return
+		}
 		c.String(http.StatusOK, "ok")
 	})
 
@@ -50,7 +54,7 @@ func initHTTPServer() *http.Server {
 	// webhookPoller is set by initBot() before initHTTPServer() is called,
 	// so it will be non-nil when real Telegram requests arrive.
 	r.POST("/webhook", func(c *gin.Context) {
-		if webhookPoller == nil {
+		if webhookPoller == nil || shuttingDown.Load() {
 			c.Status(http.StatusServiceUnavailable)
 			return
 		}

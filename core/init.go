@@ -78,6 +78,7 @@ func Init(conf ConfigTemplate) {
 	// Block until signal
 	<-quit
 	log.Info("SIGTERM received, draining active sessions...")
+	shuttingDown.Store(true)
 
 	// Shutdown HTTP server first so no new Telegram webhooks are accepted.
 	// We intentionally don't call b.Stop() — telebot v3.99.9 has a
@@ -85,6 +86,7 @@ func Init(conf ConfigTemplate) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	srv.Shutdown(ctx)
+	failActiveSessionsForShutdown()
 
 	done := make(chan struct{})
 	go func() {

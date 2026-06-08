@@ -3,6 +3,7 @@ package core
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 
 	"github.com/go-co-op/gocron"
 	"github.com/panjf2000/ants/v2"
@@ -17,6 +18,7 @@ var cronScheduler *gocron.Scheduler
 
 var activeSessionsWg sync.WaitGroup
 var webhookPoller *tele.Webhook
+var shuttingDown atomic.Bool
 
 var dataDir string
 var botName string

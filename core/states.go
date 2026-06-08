@@ -14,6 +14,10 @@ import (
 
 // Handle conversation state during a command.
 func handleMessage(c tele.Context) error {
+	if shuttingDown.Load() {
+		return c.Send(shutdownRetryMessage)
+	}
+
 	var err error
 	command, state := getState(c)
 	if command == "" {

@@ -1,6 +1,7 @@
 .vscode
 .env
 .venv
+.gocache/
 __debug*
 *_data/
 
