@@ -231,6 +231,22 @@ func safeModeInput(sf *StickerFile) string {
 	return sf.cPath
 }
 
+func validateStickerInput(sf *StickerFile, file string) error {
+	if sf.cError != nil {
+		return sf.cError
+	}
+	if sf.fileID != "" {
+		return nil
+	}
+	if file == "" {
+		return errors.New("converted sticker file path is empty")
+	}
+	if _, err := os.Stat(file); err != nil {
+		return err
+	}
+	return nil
+}
+
 // Create sticker set if needed.
 func createStickerSet(safeMode bool, sf *StickerFile, c tele.Context, name string, title string, ssType string) error {
 	var file string
@@ -242,9 +258,16 @@ func createStickerSet(safeMode bool, sf *StickerFile, c tele.Context, name strin
 	sf.wg.Wait()
 
 	if safeMode {
-		file, _ = msbimport.FFToWebmSafe(safeModeInput(sf), isCustomEmoji)
+		var err error
+		file, err = msbimport.FFToWebmSafe(safeModeInput(sf), isCustomEmoji)
+		if err != nil {
+			return err
+		}
 	} else {
 		file = sf.cPath
+	}
+	if err := validateStickerInput(sf, file); err != nil {
+		return err
 	}
 
 	log.Debugln("createStickerSet: attempting, sticker file path:", sf.cPath)
@@ -303,6 +326,9 @@ func createStickerSetBatch(sfs []*StickerFile, c tele.Context, name string, titl
 	for i, sf := range sfs {
 		sf.wg.Wait()
 		file := sf.cPath
+		if err := validateStickerInput(sf, file); err != nil {
+			return err
+		}
 		input := tele.InputSticker{
 			Emojis:   sf.emojis,
 			Keywords: sf.keywords,
@@ -350,9 +376,15 @@ func commitSingleticker(pos int, flCount *int, safeMode bool, sf *StickerFile, c
 	sf.wg.Wait()
 
 	if safeMode {
-		file, _ = msbimport.FFToWebmSafe(safeModeInput(sf), isCustomEmoji)
+		file, err = msbimport.FFToWebmSafe(safeModeInput(sf), isCustomEmoji)
+		if err != nil {
+			return err
+		}
 	} else {
 		file = sf.cPath
+	}
+	if err := validateStickerInput(sf, file); err != nil {
+		return err
 	}
 
 	log.Debugln("commitSingleticker: attempting, sticker file path:", sf.cPath)
