@@ -249,6 +249,7 @@ func prepareLineStickers(ctx context.Context, ld *LineData, workDir string, conv
 		lf := &LineFile{
 			ConvertToEmoji: convertToTGEmoji,
 			OriginalFile:   pf,
+			Status:         NewConversionStatus(),
 		}
 		if convertToTGFormat {
 			lf.Wg.Add(1)
@@ -383,7 +384,9 @@ func prepareLineMessageS(ctx context.Context, ld *LineData, workDir string, need
 	log.Debugln("overlay images:", overlayImages)
 
 	for range baseImages {
-		lf := &LineFile{}
+		lf := &LineFile{
+			Status: NewConversionStatus(),
+		}
 		lf.Wg.Add(1)
 		ld.Files = append(ld.Files, lf)
 	}

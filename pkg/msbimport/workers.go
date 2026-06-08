@@ -42,7 +42,7 @@ func wConvertWebm(i interface{}) {
 		}
 	}
 
-	lf.ConvertedFile, err = FFToWebmTGVideoContext(ctx, lf.OriginalFile, lf.ConvertToEmoji)
+	lf.ConvertedFile, err = FFToWebmTGVideoContextWithStatus(ctx, lf.OriginalFile, lf.ConvertToEmoji, lf.Status)
 	if err != nil {
 		lf.CError = err
 	}

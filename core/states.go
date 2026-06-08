@@ -210,6 +210,7 @@ func confirmImport(c tele.Context, wantEmoji bool) error {
 		ud.stickerData.stickers = append(ud.stickerData.stickers, sf)
 	}
 	for i, lf := range ud.lineData.Files {
+		ud.stickerData.stickers[i].conversionStatus = lf.Status
 		lf.Wg.Wait()
 		if lf.CError != nil {
 			// Mark remaining stickers done so no goroutine blocks, then abort.

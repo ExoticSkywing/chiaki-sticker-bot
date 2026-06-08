@@ -58,6 +58,9 @@ func PrepareImportStickers(ctx context.Context, ld *LineData, workDir string, co
 // with 512x512 dimension.
 func convertSToTGFormat(ctx context.Context, ld *LineData) {
 	for i, s := range ld.Files {
+		if s.Status == nil {
+			s.Status = NewConversionStatus()
+		}
 		select {
 		case <-ctx.Done():
 			log.Warn("convertSToTGFormat received ctxDone!")

@@ -47,6 +47,39 @@ type LineFile struct {
 	ConvertedFile string
 	// conversion error
 	CError error
+	// conversion progress/retry status
+	Status *ConversionStatus
+}
+
+type ConversionStatus struct {
+	mu      sync.RWMutex
+	message string
+}
+
+func NewConversionStatus() *ConversionStatus {
+	return &ConversionStatus{}
+}
+
+func (s *ConversionStatus) Set(message string) {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.message = message
+}
+
+func (s *ConversionStatus) Clear() {
+	s.Set("")
+}
+
+func (s *ConversionStatus) Message() string {
+	if s == nil {
+		return ""
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.message
 }
 
 // This is called linedata due to historical reason,
