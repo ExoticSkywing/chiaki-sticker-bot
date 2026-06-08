@@ -214,6 +214,7 @@ func confirmImport(c tele.Context, wantEmoji bool) error {
 		if lf.CError != nil {
 			// Mark remaining stickers done so no goroutine blocks, then abort.
 			for j := i; j < len(ud.stickerData.stickers); j++ {
+				ud.stickerData.stickers[j].cError = lf.CError
 				ud.stickerData.stickers[j].wg.Done()
 			}
 			return lf.CError
