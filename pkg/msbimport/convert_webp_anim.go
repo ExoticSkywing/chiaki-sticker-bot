@@ -14,6 +14,22 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+type webmRateControl struct {
+	minrate string
+	bitrate string
+	maxrate string
+}
+
+var kakaoWebmRateControls = []webmRateControl{
+	{minrate: "80k", bitrate: "650k", maxrate: "760k"},
+	{minrate: "70k", bitrate: "560k", maxrate: "680k"},
+	{minrate: "60k", bitrate: "480k", maxrate: "580k"},
+	{minrate: "50k", bitrate: "400k", maxrate: "500k"},
+	{minrate: "50k", bitrate: "350k", maxrate: "450k"},
+	{minrate: "30k", bitrate: "260k", maxrate: "360k"},
+	{minrate: "20k", bitrate: "180k", maxrate: "280k"},
+}
+
 // WebpToWebmViaPipe converts an animated WebP to webm by streaming PNG frames
 // from ImageMagick directly into ffmpeg via pipe, avoiding large intermediate
 // files and reducing peak memory usage.
@@ -28,6 +44,40 @@ func WebpToWebmViaPipe(f string, isCustomEmoji bool) (string, error) {
 		scale = "100:100:force_original_aspect_ratio=decrease"
 	}
 
+	var lastErr error
+	for _, rc := range kakaoWebmRateControls {
+		err := webpToWebmViaPipeOnce(f, pathOut, scale, fps, rc)
+		if err != nil {
+			lastErr = err
+			log.Warnln("WebpToWebmViaPipe: retrying with low-memory frame sequence fallback.")
+			os.Remove(pathOut)
+			if fallback, fallbackErr := WebpToWebmViaFrames(f, isCustomEmoji); fallbackErr == nil {
+				return fallback, nil
+			} else {
+				log.Warnln("WebpToWebmViaPipe fallback ERROR:", fallbackErr)
+			}
+			return pathOut, err
+		}
+		st, err := os.Stat(pathOut)
+		if err != nil || st.Size() == 0 {
+			lastErr = errors.New("WebpToWebmViaPipe: output empty")
+			os.Remove(pathOut)
+			continue
+		}
+		if st.Size() <= 255*KiB {
+			return pathOut, nil
+		}
+		lastErr = fmt.Errorf("WebpToWebmViaPipe: output too large: %d bytes", st.Size())
+		log.Warnf("WebpToWebmViaPipe: output too large at %s, retrying lower bitrate: %d bytes", rc.bitrate, st.Size())
+		os.Remove(pathOut)
+	}
+	if lastErr != nil {
+		return pathOut, lastErr
+	}
+	return pathOut, errors.New("WebpToWebmViaPipe: no encode attempts")
+}
+
+func webpToWebmViaPipeOnce(f string, pathOut string, scale string, fps float64, rc webmRateControl) error {
 	ffArgs := append([]string{}, ffmpegQ...)
 	ffArgs = append(ffArgs,
 		"-f", "image2pipe", "-vcodec", "png",
@@ -35,8 +85,8 @@ func WebpToWebmViaPipe(f string, isCustomEmoji bool) (string, error) {
 		"-i", "pipe:0",
 		"-vf", "scale="+scale,
 		"-threads", "1", "-pix_fmt", "yuva420p", "-c:v", "libvpx-vp9",
-		"-cpu-used", "8", "-lag-in-frames", "0", "-tile-columns", "0", "-tile-rows", "0", "-auto-alt-ref", "0",
-		"-minrate", "50k", "-b:v", "350k", "-maxrate", "450k",
+		"-cpu-used", "5", "-lag-in-frames", "0", "-tile-columns", "0", "-tile-rows", "0", "-auto-alt-ref", "0",
+		"-minrate", rc.minrate, "-b:v", rc.bitrate, "-maxrate", rc.maxrate,
 		"-to", "00:00:03", "-an", "-y", pathOut,
 	)
 
@@ -56,12 +106,12 @@ func WebpToWebmViaPipe(f string, isCustomEmoji bool) (string, error) {
 	releaseFFmpeg := acquireFFmpegSlot()
 	if err := imCmd.Start(); err != nil {
 		releaseFFmpeg()
-		return pathOut, fmt.Errorf("WebpToWebmViaPipe: imCmd start: %w", err)
+		return fmt.Errorf("WebpToWebmViaPipe: imCmd start: %w", err)
 	}
 	if err := ffCmd.Start(); err != nil {
 		releaseFFmpeg()
 		imCmd.Process.Kill()
-		return pathOut, fmt.Errorf("WebpToWebmViaPipe: ffCmd start: %w", err)
+		return fmt.Errorf("WebpToWebmViaPipe: ffCmd start: %w", err)
 	}
 
 	imErr := imCmd.Wait()
@@ -71,22 +121,12 @@ func WebpToWebmViaPipe(f string, isCustomEmoji bool) (string, error) {
 
 	if imErr != nil || ffErr != nil {
 		log.Warnln("WebpToWebmViaPipe ERROR ffmpeg:", ffOut.String())
-		log.Warnln("WebpToWebmViaPipe: retrying with low-memory frame sequence fallback.")
-		os.Remove(pathOut)
-		if fallback, err := WebpToWebmViaFrames(f, isCustomEmoji); err == nil {
-			return fallback, nil
-		} else {
-			log.Warnln("WebpToWebmViaPipe fallback ERROR:", err)
-		}
 		if ffErr != nil {
-			return pathOut, ffErr
+			return ffErr
 		}
-		return pathOut, imErr
+		return imErr
 	}
-	if st, err := os.Stat(pathOut); err != nil || st.Size() == 0 {
-		return pathOut, errors.New("WebpToWebmViaPipe: output empty")
-	}
-	return pathOut, nil
+	return nil
 }
 
 // WebpToWebmViaFrames trades temporary disk writes for a lower memory peak:
@@ -122,27 +162,42 @@ func WebpToWebmViaFrames(f string, isCustomEmoji bool) (string, error) {
 		return pathOut, errors.New("WebpToWebmViaFrames: no frames produced")
 	}
 
-	ffArgs := append([]string{}, ffmpegQ...)
-	ffArgs = append(ffArgs,
-		"-framerate", fmt.Sprintf("%g", fps),
-		"-i", framePattern,
-		"-vf", "scale="+scale,
-		"-threads", "1", "-pix_fmt", "yuva420p", "-c:v", "libvpx-vp9",
-		"-cpu-used", "8", "-lag-in-frames", "0", "-tile-columns", "0", "-tile-rows", "0", "-auto-alt-ref", "0",
-		"-minrate", "50k", "-b:v", "350k", "-maxrate", "450k",
-		"-to", "00:00:03", "-an", "-y", pathOut,
-	)
-	releaseFFmpeg := acquireFFmpegSlot()
-	out, err := niceCommand(FFMPEG_BIN, ffArgs...).CombinedOutput()
-	releaseFFmpeg()
-	if err != nil {
-		log.Warnln("WebpToWebmViaFrames ffmpeg ERROR:", string(out))
-		return pathOut, err
+	var lastErr error
+	for _, rc := range kakaoWebmRateControls {
+		ffArgs := append([]string{}, ffmpegQ...)
+		ffArgs = append(ffArgs,
+			"-framerate", fmt.Sprintf("%g", fps),
+			"-i", framePattern,
+			"-vf", "scale="+scale,
+			"-threads", "1", "-pix_fmt", "yuva420p", "-c:v", "libvpx-vp9",
+			"-cpu-used", "5", "-lag-in-frames", "0", "-tile-columns", "0", "-tile-rows", "0", "-auto-alt-ref", "0",
+			"-minrate", rc.minrate, "-b:v", rc.bitrate, "-maxrate", rc.maxrate,
+			"-to", "00:00:03", "-an", "-y", pathOut,
+		)
+		releaseFFmpeg := acquireFFmpegSlot()
+		out, err := niceCommand(FFMPEG_BIN, ffArgs...).CombinedOutput()
+		releaseFFmpeg()
+		if err != nil {
+			log.Warnln("WebpToWebmViaFrames ffmpeg ERROR:", string(out))
+			return pathOut, err
+		}
+		st, err := os.Stat(pathOut)
+		if err != nil || st.Size() == 0 {
+			lastErr = errors.New("WebpToWebmViaFrames: output empty")
+			os.Remove(pathOut)
+			continue
+		}
+		if st.Size() <= 255*KiB {
+			return pathOut, nil
+		}
+		lastErr = fmt.Errorf("WebpToWebmViaFrames: output too large: %d bytes", st.Size())
+		log.Warnf("WebpToWebmViaFrames: output too large at %s, retrying lower bitrate: %d bytes", rc.bitrate, st.Size())
+		os.Remove(pathOut)
 	}
-	if st, err := os.Stat(pathOut); err != nil || st.Size() == 0 {
-		return pathOut, errors.New("WebpToWebmViaFrames: output empty")
+	if lastErr != nil {
+		return pathOut, lastErr
 	}
-	return pathOut, nil
+	return pathOut, errors.New("WebpToWebmViaFrames: no encode attempts")
 }
 
 // webpFPS returns the playback FPS of an animated WebP by reading the first
