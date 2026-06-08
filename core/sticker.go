@@ -152,20 +152,25 @@ func waitStickerConversionProgress(sf *StickerFile, index int, total int, lastEd
 		close(done)
 	}()
 
-	start := time.Now()
 	firstNotice := time.NewTimer(3 * time.Second)
 	heartbeat := time.NewTicker(20 * time.Second)
 	defer firstNotice.Stop()
 	defer heartbeat.Stop()
 
-	edit := func(doneCount int, activeIndex int, elapsed time.Duration, force bool) {
+	edit := func(doneCount int, status string, force bool) {
 		now := time.Now()
 		if !force && now.Sub(lastEdit) < 3*time.Second {
 			return
 		}
-		prog := conversionProgressText(doneCount, total, activeIndex, elapsed)
+		prog := conversionProgressText(doneCount, total, status)
 		editProgressMsg(0, 0, prog, pText, teleMsg, c)
 		lastEdit = now
+	}
+
+	editStatus := func() {
+		if status := sf.conversionStatus.Message(); status != "" {
+			edit(index, status, true)
+		}
 	}
 
 	for {
@@ -174,13 +179,13 @@ func waitStickerConversionProgress(sf *StickerFile, index int, total int, lastEd
 			doneCount := index + 1
 			force := doneCount == total
 			if total <= 30 || shouldEditConversionMilestone(doneCount, total) {
-				edit(doneCount, 0, 0, force)
+				edit(doneCount, "", force)
 			}
 			return lastEdit
 		case <-firstNotice.C:
-			edit(index, index+1, time.Since(start), true)
+			editStatus()
 		case <-heartbeat.C:
-			edit(index, index+1, time.Since(start), true)
+			editStatus()
 		}
 	}
 }
@@ -195,23 +200,12 @@ func shouldEditConversionMilestone(done int, total int) bool {
 	return done%(total/4) == 0
 }
 
-func conversionProgressText(done int, total int, active int, elapsed time.Duration) string {
+func conversionProgressText(done int, total int, status string) string {
 	prog := "<code>Converting / 轉檔中...\n       " + strconv.Itoa(done) + " of " + strconv.Itoa(total)
-	if active > 0 {
-		prog += "\n       working on " + strconv.Itoa(active) + " of " + strconv.Itoa(total)
-	}
-	if elapsed >= 10*time.Second {
-		prog += "\n       still working " + formatShortDuration(elapsed)
+	if status != "" {
+		prog += "\nSticker " + strconv.Itoa(done+1) + " " + status
 	}
 	return prog + "</code>"
-}
-
-func formatShortDuration(d time.Duration) string {
-	seconds := int(d.Round(time.Second).Seconds())
-	if seconds < 60 {
-		return strconv.Itoa(seconds) + "s"
-	}
-	return strconv.Itoa(seconds/60) + "m" + strconv.Itoa(seconds%60) + "s"
 }
 
 // Only fatal error should be returned.

@@ -97,6 +97,7 @@ func prepareKakaoStickers(ctx context.Context, ld *LineData, workDir string, nee
 	//When user reached commitSticker state, sticker will be waited one by one.
 	for range ld.DLinks {
 		lf := &LineFile{}
+		lf.Status = NewConversionStatus()
 		lf.Wg.Add(1)
 		ld.Files = append(ld.Files, lf)
 	}
@@ -132,7 +133,7 @@ func prepareKakaoStickers(ctx context.Context, ld *LineData, workDir string, nee
 			}
 			var cf string
 			if isAnimated {
-				cf, err = KakaoAnimatedWebpToWebm(f)
+				cf, err = KakaoAnimatedWebpToWebm(f, ld.Files[i].Status)
 			} else {
 				cf, err = IMToWebpTGStatic(f, false)
 			}
@@ -179,6 +180,7 @@ func prepareKakaoZipStickers(ctx context.Context, ld *LineData, workDir string, 
 	for _, wf := range kakaoFiles {
 		lf := &LineFile{
 			OriginalFile: wf,
+			Status:       NewConversionStatus(),
 		}
 		if needConvert {
 			lf.Wg.Add(1)

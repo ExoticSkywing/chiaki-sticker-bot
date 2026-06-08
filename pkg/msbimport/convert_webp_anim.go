@@ -41,15 +41,16 @@ var kakaoWebmRateControls = []webmRateControl{
 // KakaoAnimatedWebpToWebm converts Kakao animated WebP stickers to Telegram
 // WebM. The default path writes PNG frames to disk, then runs two-pass VP9 so
 // fast-motion frames get better bit allocation under Telegram's 255KiB limit.
-func KakaoAnimatedWebpToWebm(f string) (string, error) {
+func KakaoAnimatedWebpToWebm(f string, status *ConversionStatus) (string, error) {
 	if os.Getenv("MSB_KAKAO_FAST_PIPE") != "1" {
-		return webpToWebmViaFramesTwoPass(f, false)
+		return webpToWebmViaFramesTwoPass(f, false, status)
 	}
-	return webpToWebmViaPipeFast(f, false)
+	return webpToWebmViaPipeFast(f, false, status)
 }
 
-func webpToWebmViaPipeFast(f string, isCustomEmoji bool) (string, error) {
+func webpToWebmViaPipeFast(f string, isCustomEmoji bool, status *ConversionStatus) (string, error) {
 	pathOut := f + ".webm"
+	status.Clear()
 
 	fps := webpFPS(f)
 	log.Debugf("webpToWebmViaPipeFast: %s fps=%.2f", f, fps)
@@ -66,7 +67,7 @@ func webpToWebmViaPipeFast(f string, isCustomEmoji bool) (string, error) {
 			lastErr = err
 			log.Warnln("webpToWebmViaPipeFast: retrying with two-pass frame sequence fallback.")
 			os.Remove(pathOut)
-			if fallback, fallbackErr := webpToWebmViaFramesTwoPass(f, isCustomEmoji); fallbackErr == nil {
+			if fallback, fallbackErr := webpToWebmViaFramesTwoPass(f, isCustomEmoji, status); fallbackErr == nil {
 				return fallback, nil
 			} else {
 				log.Warnln("webpToWebmViaPipeFast fallback ERROR:", fallbackErr)
@@ -80,9 +81,11 @@ func webpToWebmViaPipeFast(f string, isCustomEmoji bool) (string, error) {
 			continue
 		}
 		if st.Size() <= 255*KiB {
+			status.Clear()
 			return pathOut, nil
 		}
 		lastErr = fmt.Errorf("webpToWebmViaPipeFast: output too large: %d bytes", st.Size())
+		status.Set(stickerTooLargeStatus())
 		log.Warnf("webpToWebmViaPipeFast: output too large at %s, retrying lower bitrate: %d bytes", rc.bitrate, st.Size())
 		os.Remove(pathOut)
 	}
@@ -153,8 +156,9 @@ func webpToWebmViaPipeOnce(f string, pathOut string, scale string, fps float64, 
 // webpToWebmViaFramesTwoPass trades temporary disk writes for lower memory and
 // better motion quality: ImageMagick exits before ffmpeg starts, then VP9
 // two-pass encoding allocates bits across the whole sticker.
-func webpToWebmViaFramesTwoPass(f string, isCustomEmoji bool) (string, error) {
+func webpToWebmViaFramesTwoPass(f string, isCustomEmoji bool, status *ConversionStatus) (string, error) {
 	pathOut := f + ".webm"
+	status.Clear()
 	fps := webpFPS(f)
 	frameDir, err := os.MkdirTemp(filepath.Dir(f), filepath.Base(f)+".frames-*")
 	if err != nil {
@@ -197,9 +201,11 @@ func webpToWebmViaFramesTwoPass(f string, isCustomEmoji bool) (string, error) {
 			continue
 		}
 		if st.Size() <= 255*KiB {
+			status.Clear()
 			return pathOut, nil
 		}
 		lastErr = fmt.Errorf("webpToWebmViaFramesTwoPass: output too large: %d bytes", st.Size())
+		status.Set(stickerTooLargeStatus())
 		log.Warnf("webpToWebmViaFramesTwoPass: output too large at %s, retrying lower bitrate: %d bytes", rc.bitrate, st.Size())
 		os.Remove(pathOut)
 	}
@@ -207,6 +213,10 @@ func webpToWebmViaFramesTwoPass(f string, isCustomEmoji bool) (string, error) {
 		return pathOut, lastErr
 	}
 	return pathOut, errors.New("webpToWebmViaFramesTwoPass: no encode attempts")
+}
+
+func stickerTooLargeStatus() string {
+	return "too large for Telegram. Compressing..."
 }
 
 func encodeWebmFramesTwoPass(framePattern string, pathOut string, scale string, fps float64, workDir string, rc webmRateControl) (string, error) {

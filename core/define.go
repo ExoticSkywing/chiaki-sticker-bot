@@ -145,8 +145,9 @@ type StickerFile struct {
 	// If fileID exists, oPath can be omitted.
 	oPath string
 	// path of converted filea
-	cPath  string
-	cError error
+	cPath            string
+	cError           error
+	conversionStatus *msbimport.ConversionStatus
 	//////////////////
 	//Following fields comply with tele.InputSticker
 	//////////////////

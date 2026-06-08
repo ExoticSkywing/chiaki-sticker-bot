@@ -15,9 +15,14 @@ func FFToWebmTGVideo(f string, isCustomEmoji bool) (string, error) {
 }
 
 func FFToWebmTGVideoContext(ctx context.Context, f string, isCustomEmoji bool) (string, error) {
+	return FFToWebmTGVideoContextWithStatus(ctx, f, isCustomEmoji, nil)
+}
+
+func FFToWebmTGVideoContextWithStatus(ctx context.Context, f string, isCustomEmoji bool, status *ConversionStatus) (string, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	status.Clear()
 	if err := ctx.Err(); err != nil {
 		return "", err
 	}
@@ -116,8 +121,10 @@ func FFToWebmTGVideoContext(ctx context.Context, f string, isCustomEmoji bool) (
 			continue
 		}
 		if stat.Size() > 255*KiB {
+			status.Set(stickerTooLargeStatus())
 			continue
 		}
+		status.Clear()
 		return pathOut, nil
 	}
 	if lastErr != nil {
