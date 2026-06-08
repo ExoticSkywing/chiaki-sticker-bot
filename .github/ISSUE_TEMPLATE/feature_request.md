@@ -1,5 +1,5 @@
 ---
-name: Feature request
+name: Feature request 功能許願池
 about: Suggest an idea for this project
 title: "[Request]"
 labels: enhancement
