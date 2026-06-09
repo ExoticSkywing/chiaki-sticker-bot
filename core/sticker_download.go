@@ -154,8 +154,14 @@ func downloadGifToZip(c tele.Context) error {
 }
 
 func downloadLineSToZip(c tele.Context, ud *UserData) error {
+	releaseImportSlot, err := acquireImportSlot(ud.ctx)
+	if err != nil {
+		return err
+	}
+	defer releaseImportSlot()
+
 	workDir := filepath.Join(ud.workDir, ud.lineData.Id)
-	err := msbimport.PrepareImportStickers(ud.ctx, ud.lineData, workDir, false, false)
+	err = msbimport.PrepareImportStickers(ud.ctx, ud.lineData, workDir, false, false)
 	if err != nil {
 		return err
 	}

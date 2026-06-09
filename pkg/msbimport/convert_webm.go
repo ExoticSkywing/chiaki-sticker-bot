@@ -258,29 +258,29 @@ func FFToAnimatedWebpWA(f string) error {
 	qualities := []string{"75", "50", "20", "0", "_DS256", "_DS256Q0"}
 
 	for _, q := range qualities {
+		scale := "scale=512:512:force_original_aspect_ratio=decrease,pad=512:512:-1:-1:color=black@0"
+		quality := q
+		switch q {
+		case "_DS256":
+			scale = "scale=256:256:force_original_aspect_ratio=decrease,pad=512:512:-1:-1:color=black@0"
+			quality = "20"
+		case "_DS256Q0":
+			scale = "scale=256:256:force_original_aspect_ratio=decrease,pad=512:512:-1:-1:color=black@0"
+			quality = "0"
+		}
+
 		args := append([]string{}, ffmpegQ...)
 		args = append(args, "-c:v", "libvpx-vp9", "-i", f,
-			"-vf", "scale=512:512:force_original_aspect_ratio=decrease,pad=512:512:-1:-1:color=black@0",
-			"-quality", q, "-loop", "0", "-pix_fmt", "yuva420p",
+			"-vf", scale,
+			"-threads", "1",
+			"-quality", quality, "-loop", "0", "-pix_fmt", "yuva420p",
 			"-an", "-y", pathOut)
 
-		if q == "_DS256" {
-			args = append([]string{}, ffmpegQ...)
-			args = append(args, "-c:v", "libvpx-vp9", "-i", f,
-				"-vf", "scale=256:256:force_original_aspect_ratio=decrease,pad=512:512:-1:-1:color=black@0",
-				"-quality", "20", "-loop", "0", "-pix_fmt", "yuva420p",
-				"-an", "-y", pathOut)
-		}
-
-		if q == "_DS256Q0" {
-			args = append([]string{}, ffmpegQ...)
-			args = append(args, "-c:v", "libvpx-vp9", "-i", f,
-				"-vf", "scale=256:256:force_original_aspect_ratio=decrease,pad=512:512:-1:-1:color=black@0",
-				"-quality", "0", "-loop", "0", "-pix_fmt", "yuva420p",
-				"-an", "-y", pathOut)
-		}
-
-		out, err := exec.Command(bin, args...).CombinedOutput()
+		runCtx, cancel := context.WithTimeout(context.Background(), ffmpegTimeout)
+		releaseFFmpeg := acquireFFmpegSlot()
+		out, err := niceCommandContext(runCtx, bin, args...).CombinedOutput()
+		releaseFFmpeg()
+		cancel()
 		if err != nil {
 			log.Warnln("ffToAnimatedWebpWA ERROR:", string(out))
 			return err
