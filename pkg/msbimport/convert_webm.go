@@ -175,26 +175,51 @@ func FFToWebmSafeContext(ctx context.Context, f string, isCustomEmoji bool) (str
 	return pathOut, err
 }
 
+// FFToGif converts a video to GIF using a two-pass palette pipeline. The
+// single-pass `split[a][b];palettegen;paletteuse` form buffers every frame in
+// memory while palettegen finishes, which OOMs on the 256MB Fly VM. Splitting
+// into two ffmpeg invocations keeps the working set bounded to a couple of
+// frames per pass.
 func FFToGif(f string) (string, error) {
 	var decoder []string
-	var args []string
 	if strings.HasSuffix(f, ".webm") {
 		decoder = []string{"-c:v", "libvpx-vp9"}
 	}
 	pathOut := f + ".gif"
+	palettePath := f + ".palette.png"
+	defer os.Remove(palettePath)
 	bin := FFMPEG_BIN
-	args = append(args, decoder...)
-	args = append(args, ffmpegQ...)
-	args = append(args, "-i", f,
-		"-lavfi", "split[a][b];[a]palettegen=reserve_transparent=1[p];[b][p]paletteuse=alpha_threshold=128:dither=sierra2_4a",
+
+	// Pass 1: generate palette only.
+	args1 := append([]string{}, decoder...)
+	args1 = append(args1, ffmpegQ...)
+	args1 = append(args1, "-i", f,
+		"-vf", "palettegen=reserve_transparent=1",
+		"-y", palettePath)
+
+	ctx1, cancel1 := context.WithTimeout(context.Background(), ffmpegTimeout)
+	releaseFFmpeg := acquireFFmpegSlot()
+	out, err := niceCommandContext(ctx1, bin, args1...).CombinedOutput()
+	releaseFFmpeg()
+	cancel1()
+	if err != nil {
+		log.Warnf("ffToGif palettegen ERROR:\n%s", string(out))
+		return "", err
+	}
+
+	// Pass 2: apply palette. `-c:v libvpx-vp9` only scopes to the first -i.
+	args2 := append([]string{}, decoder...)
+	args2 = append(args2, ffmpegQ...)
+	args2 = append(args2, "-i", f, "-i", palettePath,
+		"-lavfi", "[0:v][1:v]paletteuse=alpha_threshold=128:dither=sierra2_4a",
 		"-gifflags", "-transdiff", "-gifflags", "-offsetting",
 		"-y", pathOut)
 
-	ctx, cancel := context.WithTimeout(context.Background(), ffmpegTimeout)
-	defer cancel()
-	releaseFFmpeg := acquireFFmpegSlot()
-	out, err := niceCommandContext(ctx, bin, args...).CombinedOutput()
+	ctx2, cancel2 := context.WithTimeout(context.Background(), ffmpegTimeout)
+	releaseFFmpeg = acquireFFmpegSlot()
+	out, err = niceCommandContext(ctx2, bin, args2...).CombinedOutput()
 	releaseFFmpeg()
+	cancel2()
 	if err != nil {
 		log.Warnf("ffToGif ERROR:\n%s", string(out))
 		return "", err
