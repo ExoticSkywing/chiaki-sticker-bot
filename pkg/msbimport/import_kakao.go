@@ -131,20 +131,22 @@ func prepareKakaoStickers(ctx context.Context, ld *LineData, workDir string, nee
 				}
 				return
 			}
-			var cf string
-			if isAnimated {
-				cf, err = KakaoAnimatedWebpToWebm(f, ld.Files[i].Status)
-			} else {
-				cf, err = IMToWebpTGStatic(f, false)
-			}
-			if err != nil {
-				log.Warnln("prepareKakaoStickers: convert error:", err)
-				// Fail fast: mark remaining files with the error.
-				for j := i; j < len(ld.Files); j++ {
-					ld.Files[j].CError = err
-					ld.Files[j].Wg.Done()
+			cf := f
+			if needConvert {
+				if isAnimated {
+					cf, err = KakaoAnimatedWebpToWebm(f, ld.Files[i].Status)
+				} else {
+					cf, err = IMToWebpTGStatic(f, false)
 				}
-				return
+				if err != nil {
+					log.Warnln("prepareKakaoStickers: convert error:", err)
+					// Fail fast: mark remaining files with the error.
+					for j := i; j < len(ld.Files); j++ {
+						ld.Files[j].CError = err
+						ld.Files[j].Wg.Done()
+					}
+					return
+				}
 			}
 			ld.Files[i].OriginalFile = f
 			ld.Files[i].ConvertedFile = cf

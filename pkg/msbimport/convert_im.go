@@ -112,6 +112,7 @@ func isAnimatedWebp(f string) bool {
 func IMStackToWebp(base string, overlay string) (string, error) {
 	bin := CONVERT_BIN
 	args := append([]string{}, CONVERT_ARGS...)
+	args = append(args, imageMagickResourceArgs()...)
 	fOut := base + ".composite.webp"
 
 	args = append(args, base, overlay, "-background", "none", "-filter", "Lanczos", "-resize", "512x512", "-composite",
@@ -138,6 +139,7 @@ func IMToPNGThumb(f string) error {
 
 	bin := CONVERT_BIN
 	args := append([]string{}, CONVERT_ARGS...)
+	args = append(args, imageMagickResourceArgs()...)
 	args = append(args,
 		f+"[0]", "-background", "none", "-alpha", "on",
 		"-resize", "96x96",
