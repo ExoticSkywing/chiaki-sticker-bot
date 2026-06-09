@@ -23,12 +23,23 @@ const telegramVideoMaxDuration = 3.0
 // target binary (same PID), so CommandContext timeouts still reach ffmpeg.
 const niceLevel = "19"
 
+// heavyConverterSemaphore serializes ffmpeg and rlottie (TGS→GIF) invocations
+// against each other. Both are memory-heavy on the 256MB Fly VM, so running them
+// concurrently — even though they're different binaries — can OOM the box.
 var (
-	lottieGIFSemaphore     chan struct{}
-	lottieGIFSemaphoreOnce sync.Once
-	ffmpegSemaphore        chan struct{}
-	ffmpegSemaphoreOnce    sync.Once
+	heavyConverterSemaphore     chan struct{}
+	heavyConverterSemaphoreOnce sync.Once
 )
+
+func initHeavyConverterSemaphore() {
+	heavyConverterSemaphoreOnce.Do(func() {
+		concurrency := 1
+		if value, err := strconv.Atoi(os.Getenv("MSB_FFMPEG_CONCURRENCY")); err == nil && value > 0 {
+			concurrency = value
+		}
+		heavyConverterSemaphore = make(chan struct{}, concurrency)
+	})
+}
 
 func niceCommand(bin string, args ...string) *exec.Cmd {
 	return exec.Command("nice", append([]string{"-n", niceLevel, bin}, args...)...)
@@ -39,32 +50,18 @@ func niceCommandContext(ctx context.Context, bin string, args ...string) *exec.C
 }
 
 func acquireLottieGIFSlot() func() {
-	lottieGIFSemaphoreOnce.Do(func() {
-		concurrency := 1
-		if value, err := strconv.Atoi(os.Getenv("MSB_RLOTTIE_CONCURRENCY")); err == nil && value > 0 {
-			concurrency = value
-		}
-		lottieGIFSemaphore = make(chan struct{}, concurrency)
-	})
-
-	lottieGIFSemaphore <- struct{}{}
+	initHeavyConverterSemaphore()
+	heavyConverterSemaphore <- struct{}{}
 	return func() {
-		<-lottieGIFSemaphore
+		<-heavyConverterSemaphore
 	}
 }
 
 func acquireFFmpegSlot() func() {
-	ffmpegSemaphoreOnce.Do(func() {
-		concurrency := 1
-		if value, err := strconv.Atoi(os.Getenv("MSB_FFMPEG_CONCURRENCY")); err == nil && value > 0 {
-			concurrency = value
-		}
-		ffmpegSemaphore = make(chan struct{}, concurrency)
-	})
-
-	ffmpegSemaphore <- struct{}{}
+	initHeavyConverterSemaphore()
+	heavyConverterSemaphore <- struct{}{}
 	return func() {
-		<-ffmpegSemaphore
+		<-heavyConverterSemaphore
 	}
 }
 
