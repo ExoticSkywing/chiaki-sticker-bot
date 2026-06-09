@@ -20,6 +20,11 @@ var httpClient = &http.Client{
 	Timeout: 10 * time.Second,
 }
 
+// httpReadLimit caps how much of an HTTP response body we buffer into memory.
+// LINE/Kakao store pages we parse here are well under 1MB in practice; a 5MB
+// ceiling prevents a runaway response from exhausting RAM on the 256MB VM.
+const httpReadLimit = 5 << 20
+
 func httpDownload(link string, f string) error {
 	res, err := http.Get(link)
 	if err != nil {
@@ -85,7 +90,7 @@ func httpGet(link string) (string, error) {
 		return "", err
 	}
 	defer res.Body.Close()
-	content, _ := io.ReadAll(res.Body)
+	content, _ := io.ReadAll(io.LimitReader(res.Body, httpReadLimit))
 	return string(content), nil
 }
 
@@ -100,7 +105,7 @@ func httpGetWithRedirLink(link string) (string, string, error) {
 		return "", "", err
 	}
 	defer res.Body.Close()
-	content, _ := io.ReadAll(res.Body)
+	content, _ := io.ReadAll(io.LimitReader(res.Body, httpReadLimit))
 	return res.Request.URL.String(), string(content), nil
 }
 
@@ -112,7 +117,7 @@ func httpGetAndroidUA(link string) (string, error) {
 		return "", err
 	}
 	defer res.Body.Close()
-	content, _ := io.ReadAll(res.Body)
+	content, _ := io.ReadAll(io.LimitReader(res.Body, httpReadLimit))
 	return string(content), nil
 }
 

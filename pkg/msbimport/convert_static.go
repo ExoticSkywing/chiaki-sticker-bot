@@ -15,6 +15,7 @@ func IMToWebpTGStatic(f string, isCustomEmoji bool) (string, error) {
 	pathOut := f + ".webp"
 	bin := CONVERT_BIN
 	args := append([]string{}, CONVERT_ARGS...)
+	args = append(args, imageMagickResourceArgs()...)
 	args = append(args, f+"[0]", "-background", "none", "-alpha", "on", "-filter", "Lanczos")
 	if isCustomEmoji {
 		args = append(args, "-resize", "100x100", "-gravity", "center", "-extent", "100x100")
@@ -37,6 +38,7 @@ func IMToWebpTGStatic(f string, isCustomEmoji bool) (string, error) {
 	// 100x100 should never exceed 255KIB, no need for extra check.
 	if st.Size() > 255*KiB {
 		args := append([]string{}, CONVERT_ARGS...)
+		args = append(args, imageMagickResourceArgs()...)
 		args = append(args, f+"[0]", "-background", "none", "-alpha", "on", "-filter", "Lanczos", "-resize", "512x512", pathOut)
 		exec.Command(bin, args...).CombinedOutput()
 	}
@@ -51,6 +53,7 @@ func IMToWebpWA(f string) error {
 	qualities := []string{"75", "50"}
 	for _, q := range qualities {
 		args := append([]string{}, CONVERT_ARGS...)
+		args = append(args, imageMagickResourceArgs()...)
 		args = append(args,
 			f+"[0]", "-background", "none", "-alpha", "on", "-filter", "Lanczos",
 			"-define", "webp:quality="+q,
@@ -79,6 +82,7 @@ func IMToPng(f string) (string, error) {
 	pathOut := f + ".png"
 	bin := CONVERT_BIN
 	args := append([]string{}, CONVERT_ARGS...)
+	args = append(args, imageMagickResourceArgs()...)
 	args = append(args, f, pathOut)
 
 	out, err := exec.Command(bin, args...).CombinedOutput()
@@ -94,6 +98,7 @@ func IMToAnimatedWebpLQ(f string) error {
 	pathOut := strings.ReplaceAll(f, ".webm", ".webp")
 	bin := CONVERT_BIN
 	args := append([]string{}, CONVERT_ARGS...)
+	args = append(args, imageMagickResourceArgs()...)
 	args = append(args, "-resize", "128x128", f, pathOut)
 
 	out, err := exec.Command(bin, args...).CombinedOutput()
