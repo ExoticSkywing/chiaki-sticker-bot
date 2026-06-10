@@ -38,16 +38,32 @@ var kakaoWebmRateControls = []webmRateControl{
 	{bitrate: "260k", maxrate: "390k"},
 	{bitrate: "220k", maxrate: "330k"},
 	{bitrate: "180k", maxrate: "270k"},
+	{bitrate: "140k", maxrate: "210k"},
+	{bitrate: "110k", maxrate: "165k"},
+	{bitrate: "90k", maxrate: "135k"},
+}
+
+var webmDurationFallbacks = []string{
+	telegramVideoMaxDurationArg,
+	telegramVideoSafeDurationArg,
+	"00:00:02.400",
+	"00:00:02.000",
+	"00:00:01.600",
+	"00:00:01.200",
 }
 
 // KakaoAnimatedWebpToWebm converts Kakao animated WebP stickers to Telegram
 // WebM. The default path writes PNG frames to disk, then runs two-pass VP9 so
 // fast-motion frames get better bit allocation under Telegram's 255KiB limit.
 func KakaoAnimatedWebpToWebm(f string, status *ConversionStatus) (string, error) {
+	return KakaoAnimatedWebpToWebmContext(context.Background(), f, status)
+}
+
+func KakaoAnimatedWebpToWebmContext(ctx context.Context, f string, status *ConversionStatus) (string, error) {
 	if os.Getenv("MSB_KAKAO_FAST_PIPE") == "1" && webpHasConstantFrameDelay(f) {
-		return webpToWebmViaPipeFastContext(context.Background(), f, false, status)
+		return webpToWebmViaPipeFastContext(ctx, f, false, status)
 	}
-	return webpToWebmViaFramesTwoPass(f, false, status)
+	return webpToWebmViaFramesTwoPassContext(ctx, f, false, status)
 }
 
 func webpToWebmViaPipeFast(f string, isCustomEmoji bool, status *ConversionStatus) (string, error) {
@@ -66,7 +82,7 @@ func animatedWebpToWebmTGVideoSafeContext(ctx context.Context, f string, isCusto
 		return f + ".webm", err
 	}
 	log.Debugln("animatedWebpToWebmTGVideoSafeContext: using frame-sequence path for precise duration trimming.")
-	return webpToWebmViaFramesTwoPassWithMaxDuration(f, isCustomEmoji, status, telegramVideoSafeDurationArg)
+	return webpToWebmViaFramesTwoPassWithMaxDurationContext(ctx, f, isCustomEmoji, status, telegramVideoSafeDurationArg)
 }
 
 func animatedWebpToWebmTGVideoWithMaxDurationContext(ctx context.Context, f string, isCustomEmoji bool, status *ConversionStatus, maxDuration string) (string, error) {
@@ -80,7 +96,7 @@ func animatedWebpToWebmTGVideoWithMaxDurationContext(ctx context.Context, f stri
 		return webpToWebmViaPipeFastWithMaxDurationContext(ctx, f, isCustomEmoji, status, maxDuration)
 	}
 	log.Debugln("animatedWebpToWebmTGVideoContext: variable frame delays detected, using frame-sequence path.")
-	return webpToWebmViaFramesTwoPassWithMaxDuration(f, isCustomEmoji, status, maxDuration)
+	return webpToWebmViaFramesTwoPassWithMaxDurationContext(ctx, f, isCustomEmoji, status, maxDuration)
 }
 
 func webpToWebmViaPipeFastContext(ctx context.Context, f string, isCustomEmoji bool, status *ConversionStatus) (string, error) {
@@ -103,48 +119,50 @@ func webpToWebmViaPipeFastWithMaxDurationContext(ctx context.Context, f string, 
 	}
 
 	var lastErr error
-	for i := 0; i < len(kakaoWebmRateControls); {
-		rc := kakaoWebmRateControls[i]
-		if err := ctx.Err(); err != nil {
-			return pathOut, err
-		}
-		err := webpToWebmViaPipeOnceWithMaxDurationContext(ctx, f, pathOut, scale, fps, rc, maxDuration)
-		if err != nil {
-			lastErr = err
-			log.Warnln("webpToWebmViaPipeFast: retrying with two-pass frame sequence fallback.")
-			os.Remove(pathOut)
-			if fallback, fallbackErr := webpToWebmViaFramesTwoPassWithMaxDuration(f, isCustomEmoji, status, maxDuration); fallbackErr == nil {
-				return fallback, nil
-			} else {
-				log.Warnln("webpToWebmViaPipeFast fallback ERROR:", fallbackErr)
+	for _, duration := range webmDurationAttempts(maxDuration) {
+		for i := 0; i < len(kakaoWebmRateControls); {
+			rc := kakaoWebmRateControls[i]
+			if err := ctx.Err(); err != nil {
+				return pathOut, err
 			}
-			return pathOut, err
-		}
-		st, err := os.Stat(pathOut)
-		if err != nil || st.Size() == 0 {
-			lastErr = errors.New("webpToWebmViaPipeFast: output empty")
+			err := webpToWebmViaPipeOnceWithMaxDurationContext(ctx, f, pathOut, scale, fps, rc, duration)
+			if err != nil {
+				lastErr = err
+				log.Warnln("webpToWebmViaPipeFast: retrying with two-pass frame sequence fallback.")
+				os.Remove(pathOut)
+				if fallback, fallbackErr := webpToWebmViaFramesTwoPassWithMaxDurationContext(ctx, f, isCustomEmoji, status, duration); fallbackErr == nil {
+					return fallback, nil
+				} else {
+					log.Warnln("webpToWebmViaPipeFast fallback ERROR:", fallbackErr)
+				}
+				return pathOut, err
+			}
+			st, err := os.Stat(pathOut)
+			if err != nil || st.Size() == 0 {
+				lastErr = errors.New("webpToWebmViaPipeFast: output empty")
+				os.Remove(pathOut)
+				i++
+				continue
+			}
+			if st.Size() <= 255*KiB {
+				status.Clear()
+				return pathOut, nil
+			}
+			lastErr = fmt.Errorf("webpToWebmViaPipeFast: output too large: %d bytes", st.Size())
+			status.Set(stickerTooLargeStatus())
+			nextIndex := nextWebmRateControlIndexAfterOversize(kakaoWebmRateControls, i, st.Size())
+			nextBitrate := "shorter duration"
+			if nextIndex < len(kakaoWebmRateControls) {
+				nextBitrate = kakaoWebmRateControls[nextIndex].bitrate
+			}
+			log.Warnf("webpToWebmViaPipeFast: output too large at %s for %s, retrying at %s: %d bytes", rc.bitrate, duration, nextBitrate, st.Size())
 			os.Remove(pathOut)
-			i++
+			i = nextIndex
 			continue
 		}
-		if st.Size() <= 255*KiB {
-			status.Clear()
-			return pathOut, nil
-		}
-		lastErr = fmt.Errorf("webpToWebmViaPipeFast: output too large: %d bytes", st.Size())
-		status.Set(stickerTooLargeStatus())
-		nextIndex := nextWebmRateControlIndexAfterOversize(kakaoWebmRateControls, i, st.Size())
-		nextBitrate := "none"
-		if nextIndex < len(kakaoWebmRateControls) {
-			nextBitrate = kakaoWebmRateControls[nextIndex].bitrate
-		}
-		log.Warnf("webpToWebmViaPipeFast: output too large at %s, retrying at %s: %d bytes", rc.bitrate, nextBitrate, st.Size())
-		os.Remove(pathOut)
-		i = nextIndex
-		continue
 	}
 	if lastErr != nil {
-		return pathOut, lastErr
+		return pathOut, fmt.Errorf("%w: %v", ErrStickerTooLarge, lastErr)
 	}
 	return pathOut, errors.New("webpToWebmViaPipeFast: no encode attempts")
 }
@@ -234,10 +252,21 @@ func webpToWebmViaPipeOnceWithMaxDurationContext(ctx context.Context, f string, 
 // better motion quality: ImageMagick exits before ffmpeg starts, then VP9
 // two-pass encoding allocates bits across the whole sticker.
 func webpToWebmViaFramesTwoPass(f string, isCustomEmoji bool, status *ConversionStatus) (string, error) {
-	return webpToWebmViaFramesTwoPassWithMaxDuration(f, isCustomEmoji, status, telegramVideoMaxDurationArg)
+	return webpToWebmViaFramesTwoPassContext(context.Background(), f, isCustomEmoji, status)
+}
+
+func webpToWebmViaFramesTwoPassContext(ctx context.Context, f string, isCustomEmoji bool, status *ConversionStatus) (string, error) {
+	return webpToWebmViaFramesTwoPassWithMaxDurationContext(ctx, f, isCustomEmoji, status, telegramVideoMaxDurationArg)
 }
 
 func webpToWebmViaFramesTwoPassWithMaxDuration(f string, isCustomEmoji bool, status *ConversionStatus, maxDuration string) (string, error) {
+	return webpToWebmViaFramesTwoPassWithMaxDurationContext(context.Background(), f, isCustomEmoji, status, maxDuration)
+}
+
+func webpToWebmViaFramesTwoPassWithMaxDurationContext(ctx context.Context, f string, isCustomEmoji bool, status *ConversionStatus, maxDuration string) (string, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	pathOut := f + ".webm"
 	status.Clear()
 	frameDir, err := os.MkdirTemp(filepath.Dir(f), filepath.Base(f)+".frames-*")
@@ -257,8 +286,11 @@ func webpToWebmViaFramesTwoPassWithMaxDuration(f string, isCustomEmoji bool, sta
 	imArgs := append([]string{}, CONVERT_ARGS...)
 	imArgs = append(imArgs, imageMagickResourceArgs()...)
 	imArgs = append(imArgs, "WEBP:"+f, "-coalesce", "-resize", size, framePattern)
-	imOut, err := exec.Command(CONVERT_BIN, imArgs...).CombinedOutput()
+	imOut, err := exec.CommandContext(ctx, CONVERT_BIN, imArgs...).CombinedOutput()
 	if err != nil {
+		if ctx.Err() != nil {
+			return pathOut, ctx.Err()
+		}
 		log.Warnln("webpToWebmViaFramesTwoPass ImageMagick ERROR:", string(imOut))
 		return pathOut, err
 	}
@@ -273,38 +305,52 @@ func webpToWebmViaFramesTwoPassWithMaxDuration(f string, isCustomEmoji bool, sta
 	}
 
 	var lastErr error
-	for i := 0; i < len(kakaoWebmRateControls); {
-		rc := kakaoWebmRateControls[i]
-		out, err := encodeWebmFramesTwoPass(timedFramePattern, pathOut, scale, timing.outputFPS, frameDir, rc, maxDuration)
-		if err != nil {
-			log.Warnln("webpToWebmViaFramesTwoPass ffmpeg ERROR:", string(out))
-			return pathOut, err
-		}
-		st, err := os.Stat(pathOut)
-		if err != nil || st.Size() == 0 {
-			lastErr = errors.New("webpToWebmViaFramesTwoPass: output empty")
+	for _, duration := range webmDurationAttempts(maxDuration) {
+		for i := 0; i < len(kakaoWebmRateControls); {
+			rc := kakaoWebmRateControls[i]
+			if err := ctx.Err(); err != nil {
+				return pathOut, err
+			}
+			out, err := encodeWebmFramesTwoPass(ctx, timedFramePattern, pathOut, scale, timing.outputFPS, frameDir, rc, duration)
+			if err != nil {
+				if ctx.Err() != nil {
+					return pathOut, ctx.Err()
+				}
+				if errors.Is(err, context.DeadlineExceeded) {
+					lastErr = fmt.Errorf("conversion timed out at %s for %s", rc.bitrate, duration)
+					log.Warnf("webpToWebmViaFramesTwoPass: %v, retrying with shorter duration", lastErr)
+					os.Remove(pathOut)
+					break
+				}
+				log.Warnln("webpToWebmViaFramesTwoPass ffmpeg ERROR:", string(out))
+				return pathOut, err
+			}
+			st, err := os.Stat(pathOut)
+			if err != nil || st.Size() == 0 {
+				lastErr = errors.New("webpToWebmViaFramesTwoPass: output empty")
+				os.Remove(pathOut)
+				i++
+				continue
+			}
+			if st.Size() <= 255*KiB {
+				status.Clear()
+				return pathOut, nil
+			}
+			lastErr = fmt.Errorf("webpToWebmViaFramesTwoPass: output too large: %d bytes", st.Size())
+			status.Set(stickerTooLargeStatus())
+			nextIndex := nextWebmRateControlIndexAfterOversize(kakaoWebmRateControls, i, st.Size())
+			nextBitrate := "shorter duration"
+			if nextIndex < len(kakaoWebmRateControls) {
+				nextBitrate = kakaoWebmRateControls[nextIndex].bitrate
+			}
+			log.Warnf("webpToWebmViaFramesTwoPass: output too large at %s for %s, retrying at %s: %d bytes", rc.bitrate, duration, nextBitrate, st.Size())
 			os.Remove(pathOut)
-			i++
+			i = nextIndex
 			continue
 		}
-		if st.Size() <= 255*KiB {
-			status.Clear()
-			return pathOut, nil
-		}
-		lastErr = fmt.Errorf("webpToWebmViaFramesTwoPass: output too large: %d bytes", st.Size())
-		status.Set(stickerTooLargeStatus())
-		nextIndex := nextWebmRateControlIndexAfterOversize(kakaoWebmRateControls, i, st.Size())
-		nextBitrate := "none"
-		if nextIndex < len(kakaoWebmRateControls) {
-			nextBitrate = kakaoWebmRateControls[nextIndex].bitrate
-		}
-		log.Warnf("webpToWebmViaFramesTwoPass: output too large at %s, retrying at %s: %d bytes", rc.bitrate, nextBitrate, st.Size())
-		os.Remove(pathOut)
-		i = nextIndex
-		continue
 	}
 	if lastErr != nil {
-		return pathOut, lastErr
+		return pathOut, fmt.Errorf("%w: %v", ErrStickerTooLarge, lastErr)
 	}
 	return pathOut, errors.New("webpToWebmViaFramesTwoPass: no encode attempts")
 }
@@ -349,7 +395,10 @@ func parseKBitrate(bitrate string) (int, bool) {
 	return kbps, true
 }
 
-func encodeWebmFramesTwoPass(framePattern string, pathOut string, scale string, fps float64, workDir string, rc webmRateControl, maxDuration string) (string, error) {
+func encodeWebmFramesTwoPass(ctx context.Context, framePattern string, pathOut string, scale string, fps float64, workDir string, rc webmRateControl, maxDuration string) (string, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	keyframeInterval := int(fps + 0.5)
 	if keyframeInterval < 12 {
 		keyframeInterval = 12
@@ -376,18 +425,55 @@ func encodeWebmFramesTwoPass(framePattern string, pathOut string, scale string, 
 
 	pass1Args := append([]string{}, baseArgs...)
 	pass1Args = append(pass1Args, "-pass", "1", "-passlogfile", passlog, "-f", "webm", "-y", os.DevNull)
-	out, err := niceCommand(FFMPEG_BIN, pass1Args...).CombinedOutput()
+	runCtx, cancel := context.WithTimeout(ctx, ffmpegTimeout)
+	out, err := niceCommandContext(runCtx, FFMPEG_BIN, pass1Args...).CombinedOutput()
+	runErr := runCtx.Err()
+	cancel()
 	if err != nil {
+		if runErr != nil {
+			return string(out), runErr
+		}
 		return string(out), err
 	}
 
 	pass2Args := append([]string{}, baseArgs...)
 	pass2Args = append(pass2Args, "-pass", "2", "-passlogfile", passlog, "-y", pathOut)
-	out, err = niceCommand(FFMPEG_BIN, pass2Args...).CombinedOutput()
+	runCtx, cancel = context.WithTimeout(ctx, ffmpegTimeout)
+	out, err = niceCommandContext(runCtx, FFMPEG_BIN, pass2Args...).CombinedOutput()
+	runErr = runCtx.Err()
+	cancel()
 	if err != nil {
+		if runErr != nil {
+			return string(out), runErr
+		}
 		return string(out), err
 	}
 	return "", nil
+}
+
+func webmDurationAttempts(maxDuration string) []string {
+	attempts := []string{}
+	seen := map[string]bool{}
+	add := func(duration string) {
+		if duration == "" || seen[duration] {
+			return
+		}
+		seen[duration] = true
+		attempts = append(attempts, duration)
+	}
+	started := false
+	for _, duration := range webmDurationFallbacks {
+		if duration == maxDuration {
+			started = true
+		}
+		if started {
+			add(duration)
+		}
+	}
+	if len(attempts) == 0 {
+		add(maxDuration)
+	}
+	return attempts
 }
 
 type webpTiming struct {

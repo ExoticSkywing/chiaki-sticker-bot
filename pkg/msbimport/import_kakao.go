@@ -143,7 +143,7 @@ func prepareKakaoStickers(ctx context.Context, ld *LineData, workDir string, nee
 			cf := f
 			if needConvert {
 				if isAnimated {
-					cf, err = KakaoAnimatedWebpToWebm(f, ld.Files[i].Status)
+					cf, err = KakaoAnimatedWebpToWebmContext(ctx, f, ld.Files[i].Status)
 				} else {
 					cf, err = IMToWebpTGStatic(f, false)
 				}

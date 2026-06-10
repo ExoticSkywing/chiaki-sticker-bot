@@ -11,6 +11,7 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
+	"github.com/star-39/moe-sticker-bot/pkg/msbimport"
 	tele "gopkg.in/telebot.v3"
 )
 
@@ -884,12 +885,37 @@ func sendUseCommandToImport(c tele.Context) error {
 }
 
 func sendOneStickerFailedToAdd(c tele.Context, pos int, err error) error {
+	if errors.Is(err, msbimport.ErrStickerTooLarge) {
+		return c.Reply(stickerCompressionFailedMessage(err), tele.NoPreview)
+	}
 	return c.Reply(fmt.Sprintf(`
 Failed to add one sticker.
 一張貼圖添加失敗
 Index: %d
 Error: %s
 `, pos, err.Error()))
+}
+
+func sendStickerCompressionFailed(c tele.Context, err error) error {
+	if c == nil {
+		return nil
+	}
+	return c.Send(stickerCompressionFailedMessage(err), tele.NoPreview)
+}
+
+func stickerCompressionFailedMessage(err error) string {
+	reason := ""
+	if err != nil {
+		reason = err.Error()
+		reason = strings.ReplaceAll(reason, msbconf.BotToken, "***")
+	}
+	return "This sticker is too large or too complex to fit Telegram's video sticker limit, even after reducing bitrate and shortening the animation.\n" +
+		"這張貼圖太大或動畫太複雜；即使降低 bitrate 並縮短秒數後，仍無法壓到 Telegram 影片貼圖限制內。\n\n" +
+		"Reason: " + reason + "\n" +
+		"原因：" + reason + "\n\n" +
+		"If this sticker should work, please report it here:\n" +
+		"如果這張貼圖理論上可以匯入，請到這裡回報：\n" +
+		"https://github.com/akira02/chiaki-sticker-bot/issues"
 }
 
 func sendBadSNWarn(c tele.Context) error {

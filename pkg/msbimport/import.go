@@ -10,6 +10,7 @@ import (
 )
 
 var ErrNoStickerFound = errors.New("no sticker found in import source")
+var ErrStickerTooLarge = errors.New("sticker too large for Telegram after compression")
 
 // This function serves as an entrypoint for this package.
 // Parse a LINE or Kakao link and fetch metadata.

@@ -3,6 +3,7 @@ package msbimport
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"strings"
@@ -64,70 +65,79 @@ func FFToWebmTGVideoContextWithStatus(ctx context.Context, f string, isCustomEmo
 	baseargs = append(baseargs, "-threads", "1", "-pix_fmt", "yuva420p", "-c:v", "libvpx-vp9", "-cpu-used", "8", "-lag-in-frames", "0", "-tile-columns", "0", "-tile-rows", "0", "-auto-alt-ref", "0")
 
 	var lastErr error
-	for rc := 0; rc < 4; rc++ {
-		if err := ctx.Err(); err != nil {
-			return "", err
-		}
-		if _, err := os.Stat(f); err != nil {
-			log.Warnln("FFToWebmTGVideo: input file gone, skipping conversion:", f)
-			if ctx.Err() != nil {
-				return "", ctx.Err()
+	for _, duration := range webmDurationAttempts(telegramVideoMaxDurationArg) {
+		for rc := 0; rc < 4; rc++ {
+			if err := ctx.Err(); err != nil {
+				return "", err
 			}
-			return "", err
-		}
-		rcargs := []string{}
-		switch rc {
-		case 0:
-			rcargs = []string{"-minrate", "50k", "-b:v", "350k", "-maxrate", "450k"}
-		case 1:
-			rcargs = []string{"-minrate", "50k", "-b:v", "200k", "-maxrate", "300k"}
-		case 2:
-			rcargs = []string{"-minrate", "20k", "-b:v", "100k", "-maxrate", "200k"}
-		case 3:
-			rcargs = []string{"-minrate", "10k", "-b:v", "50k", "-maxrate", "100k"}
-		}
-		args := append(baseargs, rcargs...)
-		args = append(args, []string{"-to", telegramVideoMaxDurationArg, "-an", "-y", pathOut}...)
-		runCtx, cancel := context.WithTimeout(ctx, ffmpegTimeout)
-		releaseFFmpeg := acquireFFmpegSlot()
-		out, err := niceCommandContext(runCtx, bin, args...).CombinedOutput()
-		releaseFFmpeg()
-		cancel()
-		if err != nil {
-			if ctx.Err() != nil {
-				return "", ctx.Err()
-			}
-			if _, statErr := os.Stat(f); statErr != nil {
+			if _, err := os.Stat(f); err != nil {
 				log.Warnln("FFToWebmTGVideo: input file gone, skipping conversion:", f)
 				if ctx.Err() != nil {
 					return "", ctx.Err()
 				}
-				return "", statErr
+				return "", err
 			}
-			// Don't bail on the first failure; let the remaining rc attempts run
-			// in case the error was transient.
-			log.Warnf("ffToWebm ERROR (rc=%d), retrying:\n%s", rc, string(out))
-			lastErr = err
-			continue
+			rcargs := []string{}
+			switch rc {
+			case 0:
+				rcargs = []string{"-minrate", "50k", "-b:v", "350k", "-maxrate", "450k"}
+			case 1:
+				rcargs = []string{"-minrate", "50k", "-b:v", "200k", "-maxrate", "300k"}
+			case 2:
+				rcargs = []string{"-minrate", "20k", "-b:v", "100k", "-maxrate", "200k"}
+			case 3:
+				rcargs = []string{"-minrate", "10k", "-b:v", "50k", "-maxrate", "100k"}
+			}
+			args := append(baseargs, rcargs...)
+			args = append(args, []string{"-to", duration, "-an", "-y", pathOut}...)
+			runCtx, cancel := context.WithTimeout(ctx, ffmpegTimeout)
+			releaseFFmpeg := acquireFFmpegSlot()
+			out, err := niceCommandContext(runCtx, bin, args...).CombinedOutput()
+			releaseFFmpeg()
+			runErr := runCtx.Err()
+			cancel()
+			if err != nil {
+				if ctx.Err() != nil {
+					return "", ctx.Err()
+				}
+				if runErr != nil {
+					log.Warnf("FFToWebmTGVideo: conversion timed out at rc=%d for %s, retrying shorter duration", rc, duration)
+					lastErr = fmt.Errorf("%w: conversion timed out at %s", ErrStickerTooLarge, duration)
+					break
+				}
+				if _, statErr := os.Stat(f); statErr != nil {
+					log.Warnln("FFToWebmTGVideo: input file gone, skipping conversion:", f)
+					if ctx.Err() != nil {
+						return "", ctx.Err()
+					}
+					return "", statErr
+				}
+				// Don't bail on the first failure; let the remaining rc attempts run
+				// in case the error was transient.
+				log.Warnf("ffToWebm ERROR (rc=%d, duration=%s), retrying:\n%s", rc, duration, string(out))
+				lastErr = err
+				continue
+			}
+			stat, err := os.Stat(pathOut)
+			if err != nil {
+				lastErr = err
+				continue
+			}
+			if stat.Size() > 255*KiB {
+				log.Warnf("FFToWebmTGVideo: output too large at rc=%d for %s, retrying: %d bytes", rc, duration, stat.Size())
+				status.Set(stickerTooLargeStatus())
+				continue
+			}
+			status.Clear()
+			return pathOut, nil
 		}
-		stat, err := os.Stat(pathOut)
-		if err != nil {
-			lastErr = err
-			continue
-		}
-		if stat.Size() > 255*KiB {
-			status.Set(stickerTooLargeStatus())
-			continue
-		}
-		status.Clear()
-		return pathOut, nil
 	}
 	if lastErr != nil {
 		log.Errorln("FFToWebmTGVideo: all attempts failed:", lastErr)
 		return pathOut, lastErr
 	}
 	log.Errorln("FFToWebmTGVideo: unable to compress below 256KiB:", pathOut)
-	return pathOut, errors.New("FFToWebmTGVideo: unable to compress below 256KiB")
+	return pathOut, ErrStickerTooLarge
 }
 
 // This function will be called if Telegram's API rejected our webm.

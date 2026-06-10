@@ -35,6 +35,52 @@ func TestParseWebpDelayTicksRejectsInvalidTiming(t *testing.T) {
 	}
 }
 
+func TestWebmDurationAttemptsOnlyShortens(t *testing.T) {
+	tests := []struct {
+		name string
+		max  string
+		want []string
+	}{
+		{
+			name: "max duration",
+			max:  telegramVideoMaxDurationArg,
+			want: []string{
+				telegramVideoMaxDurationArg,
+				telegramVideoSafeDurationArg,
+				"00:00:02.400",
+				"00:00:02.000",
+				"00:00:01.600",
+				"00:00:01.200",
+			},
+		},
+		{
+			name: "safe duration",
+			max:  telegramVideoSafeDurationArg,
+			want: []string{
+				telegramVideoSafeDurationArg,
+				"00:00:02.400",
+				"00:00:02.000",
+				"00:00:01.600",
+				"00:00:01.200",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := webmDurationAttempts(tt.max)
+			if len(got) != len(tt.want) {
+				t.Fatalf("len = %d, want %d: %v", len(got), len(tt.want), got)
+			}
+			for i := range tt.want {
+				if got[i] != tt.want[i] {
+					t.Fatalf("attempt[%d] = %s, want %s", i, got[i], tt.want[i])
+				}
+			}
+		})
+	}
+}
+
 func TestNormalizeFrameDurationsPreservesVariableDelays(t *testing.T) {
 	durations := normalizeFrameDurations([]float64{10, 100, 100}, 3)
 	want := []float64{0.1, 1.0, 1.0}

@@ -199,6 +199,13 @@ func onError(err error, c tele.Context) {
 			cleanUserDataAndDir(c.Sender().ID)
 		}
 		return
+	case errors.Is(err, msbimport.ErrStickerTooLarge):
+		log.Warnln("Sticker too large after compression:", err)
+		if c != nil {
+			sendStickerCompressionFailed(c, err)
+			cleanUserDataAndDir(c.Sender().ID)
+		}
+		return
 	default:
 		log.Error("User encountered fatal error!")
 		log.Errorln("Raw error:", err)
