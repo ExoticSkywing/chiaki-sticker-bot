@@ -55,6 +55,21 @@ func webpToWebmViaPipeFast(f string, isCustomEmoji bool, status *ConversionStatu
 }
 
 func animatedWebpToWebmTGVideoContext(ctx context.Context, f string, isCustomEmoji bool, status *ConversionStatus) (string, error) {
+	return animatedWebpToWebmTGVideoWithMaxDurationContext(ctx, f, isCustomEmoji, status, telegramVideoMaxDurationArg)
+}
+
+func animatedWebpToWebmTGVideoSafeContext(ctx context.Context, f string, isCustomEmoji bool, status *ConversionStatus) (string, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return f + ".webm", err
+	}
+	log.Debugln("animatedWebpToWebmTGVideoSafeContext: using frame-sequence path for precise duration trimming.")
+	return webpToWebmViaFramesTwoPassWithMaxDuration(f, isCustomEmoji, status, telegramVideoSafeDurationArg)
+}
+
+func animatedWebpToWebmTGVideoWithMaxDurationContext(ctx context.Context, f string, isCustomEmoji bool, status *ConversionStatus, maxDuration string) (string, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -62,13 +77,17 @@ func animatedWebpToWebmTGVideoContext(ctx context.Context, f string, isCustomEmo
 		return f + ".webm", err
 	}
 	if webpHasConstantFrameDelay(f) {
-		return webpToWebmViaPipeFastContext(ctx, f, isCustomEmoji, status)
+		return webpToWebmViaPipeFastWithMaxDurationContext(ctx, f, isCustomEmoji, status, maxDuration)
 	}
 	log.Debugln("animatedWebpToWebmTGVideoContext: variable frame delays detected, using frame-sequence path.")
-	return webpToWebmViaFramesTwoPass(f, isCustomEmoji, status)
+	return webpToWebmViaFramesTwoPassWithMaxDuration(f, isCustomEmoji, status, maxDuration)
 }
 
 func webpToWebmViaPipeFastContext(ctx context.Context, f string, isCustomEmoji bool, status *ConversionStatus) (string, error) {
+	return webpToWebmViaPipeFastWithMaxDurationContext(ctx, f, isCustomEmoji, status, telegramVideoMaxDurationArg)
+}
+
+func webpToWebmViaPipeFastWithMaxDurationContext(ctx context.Context, f string, isCustomEmoji bool, status *ConversionStatus, maxDuration string) (string, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -89,12 +108,12 @@ func webpToWebmViaPipeFastContext(ctx context.Context, f string, isCustomEmoji b
 		if err := ctx.Err(); err != nil {
 			return pathOut, err
 		}
-		err := webpToWebmViaPipeOnceContext(ctx, f, pathOut, scale, fps, rc)
+		err := webpToWebmViaPipeOnceWithMaxDurationContext(ctx, f, pathOut, scale, fps, rc, maxDuration)
 		if err != nil {
 			lastErr = err
 			log.Warnln("webpToWebmViaPipeFast: retrying with two-pass frame sequence fallback.")
 			os.Remove(pathOut)
-			if fallback, fallbackErr := webpToWebmViaFramesTwoPass(f, isCustomEmoji, status); fallbackErr == nil {
+			if fallback, fallbackErr := webpToWebmViaFramesTwoPassWithMaxDuration(f, isCustomEmoji, status, maxDuration); fallbackErr == nil {
 				return fallback, nil
 			} else {
 				log.Warnln("webpToWebmViaPipeFast fallback ERROR:", fallbackErr)
@@ -135,6 +154,10 @@ func webpToWebmViaPipeOnce(f string, pathOut string, scale string, fps float64, 
 }
 
 func webpToWebmViaPipeOnceContext(ctx context.Context, f string, pathOut string, scale string, fps float64, rc webmRateControl) error {
+	return webpToWebmViaPipeOnceWithMaxDurationContext(ctx, f, pathOut, scale, fps, rc, telegramVideoMaxDurationArg)
+}
+
+func webpToWebmViaPipeOnceWithMaxDurationContext(ctx context.Context, f string, pathOut string, scale string, fps float64, rc webmRateControl, maxDuration string) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -154,7 +177,7 @@ func webpToWebmViaPipeOnceContext(ctx context.Context, f string, pathOut string,
 	if rc.maxrate != "" {
 		ffArgs = append(ffArgs, "-maxrate", rc.maxrate)
 	}
-	ffArgs = append(ffArgs, "-to", "00:00:03", "-an", "-y", pathOut)
+	ffArgs = append(ffArgs, "-to", maxDuration, "-an", "-y", pathOut)
 
 	imArgs := append([]string{}, CONVERT_ARGS...)
 	imArgs = append(imArgs, imageMagickResourceArgs()...)
@@ -211,6 +234,10 @@ func webpToWebmViaPipeOnceContext(ctx context.Context, f string, pathOut string,
 // better motion quality: ImageMagick exits before ffmpeg starts, then VP9
 // two-pass encoding allocates bits across the whole sticker.
 func webpToWebmViaFramesTwoPass(f string, isCustomEmoji bool, status *ConversionStatus) (string, error) {
+	return webpToWebmViaFramesTwoPassWithMaxDuration(f, isCustomEmoji, status, telegramVideoMaxDurationArg)
+}
+
+func webpToWebmViaFramesTwoPassWithMaxDuration(f string, isCustomEmoji bool, status *ConversionStatus, maxDuration string) (string, error) {
 	pathOut := f + ".webm"
 	status.Clear()
 	frameDir, err := os.MkdirTemp(filepath.Dir(f), filepath.Base(f)+".frames-*")
@@ -248,7 +275,7 @@ func webpToWebmViaFramesTwoPass(f string, isCustomEmoji bool, status *Conversion
 	var lastErr error
 	for i := 0; i < len(kakaoWebmRateControls); {
 		rc := kakaoWebmRateControls[i]
-		out, err := encodeWebmFramesTwoPass(timedFramePattern, pathOut, scale, timing.outputFPS, frameDir, rc)
+		out, err := encodeWebmFramesTwoPass(timedFramePattern, pathOut, scale, timing.outputFPS, frameDir, rc, maxDuration)
 		if err != nil {
 			log.Warnln("webpToWebmViaFramesTwoPass ffmpeg ERROR:", string(out))
 			return pathOut, err
@@ -322,7 +349,7 @@ func parseKBitrate(bitrate string) (int, bool) {
 	return kbps, true
 }
 
-func encodeWebmFramesTwoPass(framePattern string, pathOut string, scale string, fps float64, workDir string, rc webmRateControl) (string, error) {
+func encodeWebmFramesTwoPass(framePattern string, pathOut string, scale string, fps float64, workDir string, rc webmRateControl, maxDuration string) (string, error) {
 	keyframeInterval := int(fps + 0.5)
 	if keyframeInterval < 12 {
 		keyframeInterval = 12
@@ -341,7 +368,7 @@ func encodeWebmFramesTwoPass(framePattern string, pathOut string, scale string, 
 		"-cpu-used", "4", "-lag-in-frames", "0", "-tile-columns", "0", "-tile-rows", "0", "-auto-alt-ref", "0",
 		"-b:v", rc.bitrate, "-maxrate", rc.maxrate,
 		"-g", strconv.Itoa(keyframeInterval),
-		"-to", "00:00:03", "-an",
+		"-to", maxDuration, "-an",
 	)
 
 	releaseFFmpeg := acquireFFmpegSlot()
