@@ -87,7 +87,7 @@ func FFToWebmTGVideoContextWithStatus(ctx context.Context, f string, isCustomEmo
 			rcargs = []string{"-minrate", "10k", "-b:v", "50k", "-maxrate", "100k"}
 		}
 		args := append(baseargs, rcargs...)
-		args = append(args, []string{"-to", "00:00:03", "-an", "-y", pathOut}...)
+		args = append(args, []string{"-to", telegramVideoMaxDurationArg, "-an", "-y", pathOut}...)
 		runCtx, cancel := context.WithTimeout(ctx, ffmpegTimeout)
 		releaseFFmpeg := acquireFFmpegSlot()
 		out, err := niceCommandContext(runCtx, bin, args...).CombinedOutput()
@@ -144,8 +144,8 @@ func FFToWebmSafeContext(ctx context.Context, f string, isCustomEmoji bool) (str
 		return "", err
 	}
 	if !strings.HasSuffix(f, ".apng") && isAnimatedWebp(f) {
-		log.Debugln("FFToWebmSafe: animated WebP detected, using streaming/frame-sequence pipeline.")
-		return animatedWebpToWebmTGVideoContext(ctx, f, isCustomEmoji, nil)
+		log.Debugln("FFToWebmSafe: animated WebP detected, using safe streaming/frame-sequence pipeline.")
+		return animatedWebpToWebmTGVideoSafeContext(ctx, f, isCustomEmoji, nil)
 	}
 
 	pathOut := f + ".webm"
@@ -159,7 +159,7 @@ func FFToWebmSafeContext(ctx context.Context, f string, isCustomEmoji bool) (str
 	}
 	args = append(args, "-threads", "1", "-pix_fmt", "yuva420p",
 		"-c:v", "libvpx-vp9", "-cpu-used", "5", "-lag-in-frames", "0", "-tile-columns", "0", "-tile-rows", "0", "-auto-alt-ref", "0", "-minrate", "50k", "-b:v", "200k", "-maxrate", "300k",
-		"-to", "00:00:02.800", "-r", "30", "-an", "-y", pathOut)
+		"-to", telegramVideoSafeDurationArg, "-r", "30", "-an", "-y", pathOut)
 
 	runCtx, cancel := context.WithTimeout(ctx, ffmpegTimeout)
 	defer cancel()

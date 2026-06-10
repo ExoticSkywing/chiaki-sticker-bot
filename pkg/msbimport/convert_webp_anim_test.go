@@ -179,6 +179,52 @@ func TestKakaoAnimatedWebpToWebmPreservesVariableDelayDuration(t *testing.T) {
 	}
 }
 
+func TestFFToWebmSafeAnimatedWebpUsesSafeDuration(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping ffmpeg/ImageMagick integration test in short mode")
+	}
+
+	InitConvert()
+	for _, bin := range []string{CONVERT_BIN, IDENTIFY_BIN, FFMPEG_BIN, FFPROBE_BIN} {
+		if _, err := exec.LookPath(bin); err != nil {
+			t.Skipf("%s not available: %v", bin, err)
+		}
+	}
+
+	dir := t.TempDir()
+	red := filepath.Join(dir, "red.png")
+	green := filepath.Join(dir, "green.png")
+	blue := filepath.Join(dir, "blue.png")
+	yellow := filepath.Join(dir, "yellow.png")
+	writeSolidPNG(t, red, "red")
+	writeSolidPNG(t, green, "green")
+	writeSolidPNG(t, blue, "blue")
+	writeSolidPNG(t, yellow, "yellow")
+
+	source := filepath.Join(dir, "safe-source.webp")
+	args := append([]string{}, CONVERT_ARGS...)
+	args = append(args,
+		"-delay", "100", red,
+		"-delay", "100", green,
+		"-delay", "100", blue,
+		"-delay", "100", yellow,
+		"-loop", "0", source,
+	)
+	if out, err := exec.Command(CONVERT_BIN, args...).CombinedOutput(); err != nil {
+		t.Fatalf("create animated webp: %v\n%s", err, string(out))
+	}
+
+	webm, err := FFToWebmSafe(source, false)
+	if err != nil {
+		t.Fatalf("FFToWebmSafe returned error: %v", err)
+	}
+
+	duration := ffprobeDurationForTest(t, webm)
+	if duration > 2.95 {
+		t.Fatalf("duration = %.3fs, want safe duration below 2.95s", duration)
+	}
+}
+
 func writeSolidPNG(t *testing.T, path string, color string) {
 	t.Helper()
 	args := append([]string{}, CONVERT_ARGS...)

@@ -17,6 +17,8 @@ const ffmpegTimeout = 120 * time.Second
 // the first regular encode and go straight to safe mode, while sources at or
 // below the limit still get a normal encode so we avoid trimming unnecessarily.
 const telegramVideoMaxDuration = 3.0
+const telegramVideoMaxDurationArg = "00:00:03"
+const telegramVideoSafeDurationArg = "00:00:02.800"
 
 // CPU-heavy encodes (VP9) run niced so the HTTP/health-check goroutine keeps
 // getting CPU on the shared single-core VM. `nice` exec-replaces itself with the
