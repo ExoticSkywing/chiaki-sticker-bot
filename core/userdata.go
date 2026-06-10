@@ -26,6 +26,7 @@ func cleanUserDataAndDir(uid int64) bool {
 		if cancel != nil {
 			cancel()
 		}
+		ud.wg.Wait()
 		os.RemoveAll(workDir)
 		log.WithField("uid", uid).Debugln("Userdata purged from map and disk.")
 		return true
