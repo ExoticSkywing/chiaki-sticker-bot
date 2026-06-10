@@ -9,6 +9,8 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+var ErrNoStickerFound = errors.New("no sticker found in import source")
+
 // This function serves as an entrypoint for this package.
 // Parse a LINE or Kakao link and fetch metadata.
 // The metadata (which means the LineData struct) can be used to call prepareImportStickers.

@@ -14,6 +14,8 @@ import (
 	tele "gopkg.in/telebot.v3"
 )
 
+var errNoStickerAvailable = errors.New("no sticker available")
+
 //TODO: Shrink oversized function.
 
 // Final stage of automated sticker submission.
@@ -28,7 +30,7 @@ func submitStickerSetAuto(createSet bool, c tele.Context) error {
 
 	if len(ud.stickerData.stickers) == 0 {
 		log.Error("No sticker to commit!")
-		return errors.New("no sticker available")
+		return errNoStickerAvailable
 	}
 
 	log.Debugln("stickerData summary:")
@@ -219,7 +221,11 @@ func submitStickerManual(createSet bool, pos int, emojis []string, keywords []st
 
 	if len(ud.stickerData.stickers) == 0 {
 		log.Error("No sticker to commit!!")
-		return errors.New("no sticker available")
+		return errNoStickerAvailable
+	}
+	if pos < 0 || pos >= len(ud.stickerData.stickers) {
+		log.Errorf("No sticker to commit at pos %d, total %d", pos, len(ud.stickerData.stickers))
+		return errNoStickerAvailable
 	}
 
 	sf := ud.stickerData.stickers[pos]

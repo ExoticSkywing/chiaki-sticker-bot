@@ -186,6 +186,19 @@ func onError(err error, c tele.Context) {
 		// Transient network blip, no stack trace and no point resending. Will recover.
 		log.Warnln("Transient network error talking to Telegram:", err)
 		return
+	case errors.Is(err, errNoStickerAvailable):
+		log.Warnln("No sticker available to commit:", err)
+		if c != nil {
+			reason := noStickerAvailableReason(err)
+			c.Send("No sticker was available to import. Please try another sticker link or start again. /start\n"+
+				"沒有可匯入的貼圖，請換一個貼圖連結或點選 /start 重試。\n\n"+
+				"Error: "+reason+"\n"+
+				"If this sticker link should work, please report it here:\n"+
+				"如果你認為這個貼圖連結能正確開啟，請到這裡回報：\n"+
+				"https://github.com/akira02/chiaki-sticker-bot/issues", tele.NoPreview)
+			cleanUserDataAndDir(c.Sender().ID)
+		}
+		return
 	default:
 		log.Error("User encountered fatal error!")
 		log.Errorln("Raw error:", err)
@@ -214,6 +227,17 @@ func onError(err error, c tele.Context) {
 	}
 	sendFatalError(err, c)
 	cleanUserDataAndDir(c.Sender().ID)
+}
+
+func noStickerAvailableReason(err error) string {
+	reason := err.Error()
+	reason = strings.ReplaceAll(reason, msbconf.BotToken, "***")
+	reason = strings.TrimPrefix(reason, errNoStickerAvailable.Error()+": ")
+	reason = strings.TrimSuffix(reason, ": "+msbimport.ErrNoStickerFound.Error())
+	if reason == "" || reason == errNoStickerAvailable.Error() {
+		return "import completed without prepared sticker files"
+	}
+	return reason
 }
 
 func initBot(conf ConfigTemplate) *tele.Bot {

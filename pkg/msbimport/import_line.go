@@ -242,7 +242,8 @@ func prepareLineStickers(ctx context.Context, ld *LineData, workDir string, conv
 
 	pngFiles := lineZipExtract(savePath, ld)
 	if len(pngFiles) == 0 {
-		return errors.New("no line image")
+		log.Warnf("prepareLineStickers: no sticker images extracted. id:%s category:%s zip:%s", ld.Id, ld.Category, ld.DLink)
+		return fmt.Errorf("LINE zip did not contain any sticker images: %w", ErrNoStickerFound)
 	}
 
 	for _, pf := range pngFiles {
@@ -378,6 +379,10 @@ func prepareLineMessageS(ctx context.Context, ld *LineData, workDir string, need
 			"https://stickershop.line-scdn.net/stickershop/v1/sticker/"+l+"/iPhone/base/plus/sticker@2x.png")
 		overlayImages = append(overlayImages,
 			"https://stickershop.line-scdn.net/stickershop/v1/product/"+ld.Id+"/sticker/"+l+"/iPhone/overlay/plus/default/sticker@2x.png")
+	}
+	if len(baseImages) == 0 {
+		log.Warnf("prepareLineMessageS: no message sticker image URLs found. id:%s link:%s", ld.Id, ld.Link)
+		return fmt.Errorf("LINE message sticker metadata did not contain any image URLs: %w", ErrNoStickerFound)
 	}
 
 	log.Debugln("base images:", baseImages)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/url"
 	"os"
 	"os/exec"
@@ -56,6 +57,10 @@ func parseKakaoLink(link string, ld *LineData) (string, error) {
 			ld.DLinks = append(ld.DLinks, item.ThumbnailUrl)
 		}
 	}
+	if len(ld.DLinks) == 0 {
+		log.Warnf("parseKakaoLink: no sticker image URLs found. id:%s link:%s", kakaoID, link)
+		return warn, fmt.Errorf("Kakao metadata did not contain any sticker image URLs: %w", ErrNoStickerFound)
+	}
 
 	ld.Title = kakaoJson.Hero.Title
 	ld.Id = kakaoID
@@ -88,6 +93,10 @@ func prepareKakaoStickers(ctx context.Context, ld *LineData, workDir string, nee
 	// If no dLink, continue importing static ones.
 	if ld.DLink != "" {
 		return prepareKakaoZipStickers(ctx, ld, workDir, needConvert)
+	}
+	if len(ld.DLinks) == 0 {
+		log.Warnf("prepareKakaoStickers: no sticker image URLs to download. id:%s link:%s", ld.Id, ld.Link)
+		return fmt.Errorf("Kakao import had no sticker image URLs to download: %w", ErrNoStickerFound)
 	}
 
 	os.MkdirAll(workDir, 0755)
@@ -172,7 +181,8 @@ func prepareKakaoZipStickers(ctx context.Context, ld *LineData, workDir string, 
 
 	kakaoFiles := kakaoZipExtract(zipPath, ld)
 	if len(kakaoFiles) == 0 {
-		return errors.New("no kakao image in zip")
+		log.Warnf("prepareKakaoZipStickers: no sticker files extracted. id:%s zip:%s", ld.Id, ld.DLink)
+		return fmt.Errorf("Kakao zip did not contain any sticker files: %w", ErrNoStickerFound)
 	}
 
 	if filepath.Ext(kakaoFiles[0]) != ".png" {

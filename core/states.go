@@ -2,6 +2,7 @@ package core
 
 import (
 	"errors"
+	"fmt"
 	"path"
 	"path/filepath"
 	"strconv"
@@ -200,7 +201,13 @@ func confirmImport(c tele.Context, wantEmoji bool) error {
 	defer releaseImportSlot()
 	err = msbimport.PrepareImportStickers(ud.ctx, ud.lineData, workDir, true, wantEmoji)
 	if err != nil {
+		if errors.Is(err, msbimport.ErrNoStickerFound) {
+			return fmt.Errorf("%w: %v", errNoStickerAvailable, err)
+		}
 		return err
+	}
+	if len(ud.lineData.Files) == 0 {
+		return fmt.Errorf("%w: import completed without prepared sticker files", errNoStickerAvailable)
 	}
 	ud.stickerData.lAmount = ud.lineData.Amount
 	ud.stickerData.isVideo = ud.lineData.IsAnimated
