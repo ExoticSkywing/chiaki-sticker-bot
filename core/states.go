@@ -192,14 +192,13 @@ func confirmImport(c tele.Context, wantEmoji bool) error {
 	workDir := filepath.Join(ud.workDir, ud.lineData.Id)
 	sendAskTitle_Import(c)
 	ud.wg.Add(1)
+	defer ud.wg.Done()
 	releaseImportSlot, err := acquireImportSlot(ud.ctx)
 	if err != nil {
-		ud.wg.Done()
 		return err
 	}
 	defer releaseImportSlot()
 	err = msbimport.PrepareImportStickers(ud.ctx, ud.lineData, workDir, true, wantEmoji)
-	ud.wg.Done()
 	if err != nil {
 		return err
 	}

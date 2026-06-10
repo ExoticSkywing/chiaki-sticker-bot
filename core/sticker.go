@@ -554,6 +554,7 @@ func appendMedia(c tele.Context) error {
 	ud := udFromCtx(c)
 	ud.wg.Add(1)
 	defer ud.wg.Done()
+	ctx := ud.ctx
 
 	if ud.stickerData.cAmount+len(ud.stickerData.stickers) > 120 {
 		return errors.New("sticker set already full 此貼圖包已滿")
@@ -597,6 +598,11 @@ func appendMedia(c tele.Context) error {
 
 	log.Debugln("appendMedia: Media downloaded to savepath:", savePath)
 	for _, f := range files {
+		if ctx != nil {
+			if err := ctx.Err(); err != nil {
+				return err
+			}
+		}
 		var cf string
 		var err error
 		//If incoming media is already a sticker, use the file as is.
@@ -607,6 +613,15 @@ func appendMedia(c tele.Context) error {
 		}
 
 		if err != nil {
+			if ctx != nil {
+				if ctxErr := ctx.Err(); ctxErr != nil {
+					return ctxErr
+				}
+			}
+			if _, statErr := os.Stat(f); os.IsNotExist(statErr) {
+				log.Warnln("appendMedia: source sticker disappeared during conversion:", f)
+				return errors.New("source sticker disappeared during conversion")
+			}
 			log.Warnln("Failed converting one user sticker", err)
 			c.Send("Failed converting one user sticker:" + err.Error())
 			continue
