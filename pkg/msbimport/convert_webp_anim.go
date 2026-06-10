@@ -84,7 +84,8 @@ func webpToWebmViaPipeFastContext(ctx context.Context, f string, isCustomEmoji b
 	}
 
 	var lastErr error
-	for _, rc := range kakaoWebmRateControls {
+	for i := 0; i < len(kakaoWebmRateControls); {
+		rc := kakaoWebmRateControls[i]
 		if err := ctx.Err(); err != nil {
 			return pathOut, err
 		}
@@ -104,6 +105,7 @@ func webpToWebmViaPipeFastContext(ctx context.Context, f string, isCustomEmoji b
 		if err != nil || st.Size() == 0 {
 			lastErr = errors.New("webpToWebmViaPipeFast: output empty")
 			os.Remove(pathOut)
+			i++
 			continue
 		}
 		if st.Size() <= 255*KiB {
@@ -112,8 +114,15 @@ func webpToWebmViaPipeFastContext(ctx context.Context, f string, isCustomEmoji b
 		}
 		lastErr = fmt.Errorf("webpToWebmViaPipeFast: output too large: %d bytes", st.Size())
 		status.Set(stickerTooLargeStatus())
-		log.Warnf("webpToWebmViaPipeFast: output too large at %s, retrying lower bitrate: %d bytes", rc.bitrate, st.Size())
+		nextIndex := nextWebmRateControlIndexAfterOversize(kakaoWebmRateControls, i, st.Size())
+		nextBitrate := "none"
+		if nextIndex < len(kakaoWebmRateControls) {
+			nextBitrate = kakaoWebmRateControls[nextIndex].bitrate
+		}
+		log.Warnf("webpToWebmViaPipeFast: output too large at %s, retrying at %s: %d bytes", rc.bitrate, nextBitrate, st.Size())
 		os.Remove(pathOut)
+		i = nextIndex
+		continue
 	}
 	if lastErr != nil {
 		return pathOut, lastErr
@@ -237,7 +246,8 @@ func webpToWebmViaFramesTwoPass(f string, isCustomEmoji bool, status *Conversion
 	}
 
 	var lastErr error
-	for _, rc := range kakaoWebmRateControls {
+	for i := 0; i < len(kakaoWebmRateControls); {
+		rc := kakaoWebmRateControls[i]
 		out, err := encodeWebmFramesTwoPass(timedFramePattern, pathOut, scale, timing.outputFPS, frameDir, rc)
 		if err != nil {
 			log.Warnln("webpToWebmViaFramesTwoPass ffmpeg ERROR:", string(out))
@@ -247,6 +257,7 @@ func webpToWebmViaFramesTwoPass(f string, isCustomEmoji bool, status *Conversion
 		if err != nil || st.Size() == 0 {
 			lastErr = errors.New("webpToWebmViaFramesTwoPass: output empty")
 			os.Remove(pathOut)
+			i++
 			continue
 		}
 		if st.Size() <= 255*KiB {
@@ -255,8 +266,15 @@ func webpToWebmViaFramesTwoPass(f string, isCustomEmoji bool, status *Conversion
 		}
 		lastErr = fmt.Errorf("webpToWebmViaFramesTwoPass: output too large: %d bytes", st.Size())
 		status.Set(stickerTooLargeStatus())
-		log.Warnf("webpToWebmViaFramesTwoPass: output too large at %s, retrying lower bitrate: %d bytes", rc.bitrate, st.Size())
+		nextIndex := nextWebmRateControlIndexAfterOversize(kakaoWebmRateControls, i, st.Size())
+		nextBitrate := "none"
+		if nextIndex < len(kakaoWebmRateControls) {
+			nextBitrate = kakaoWebmRateControls[nextIndex].bitrate
+		}
+		log.Warnf("webpToWebmViaFramesTwoPass: output too large at %s, retrying at %s: %d bytes", rc.bitrate, nextBitrate, st.Size())
 		os.Remove(pathOut)
+		i = nextIndex
+		continue
 	}
 	if lastErr != nil {
 		return pathOut, lastErr
@@ -266,6 +284,42 @@ func webpToWebmViaFramesTwoPass(f string, isCustomEmoji bool, status *Conversion
 
 func stickerTooLargeStatus() string {
 	return "too large for Telegram. Compressing..."
+}
+
+func nextWebmRateControlIndexAfterOversize(rateControls []webmRateControl, currentIndex int, outputSize int64) int {
+	nextIndex := currentIndex + 1
+	if outputSize <= 0 || nextIndex >= len(rateControls) {
+		return nextIndex
+	}
+	currentKbps, ok := parseKBitrate(rateControls[currentIndex].bitrate)
+	if !ok || currentKbps <= 0 {
+		return nextIndex
+	}
+
+	const targetSize = 255 * KiB
+	const safetyMargin = 0.94
+	estimatedKbps := int(math.Floor(float64(currentKbps) * float64(targetSize) / float64(outputSize) * safetyMargin))
+	for i := nextIndex; i < len(rateControls); i++ {
+		candidateKbps, ok := parseKBitrate(rateControls[i].bitrate)
+		if !ok {
+			continue
+		}
+		if candidateKbps <= estimatedKbps {
+			return i
+		}
+	}
+	return nextIndex
+}
+
+func parseKBitrate(bitrate string) (int, bool) {
+	if !strings.HasSuffix(bitrate, "k") {
+		return 0, false
+	}
+	kbps, err := strconv.Atoi(strings.TrimSuffix(bitrate, "k"))
+	if err != nil {
+		return 0, false
+	}
+	return kbps, true
 }
 
 func encodeWebmFramesTwoPass(framePattern string, pathOut string, scale string, fps float64, workDir string, rc webmRateControl) (string, error) {

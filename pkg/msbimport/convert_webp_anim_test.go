@@ -97,6 +97,45 @@ func TestMaterializeTimedFrameSequence(t *testing.T) {
 	}
 }
 
+func TestNextWebmRateControlIndexAfterOversizeSkipsClearlyTooHighBitrates(t *testing.T) {
+	tests := []struct {
+		name         string
+		currentIndex int
+		outputSize   int64
+		wantIndex    int
+	}{
+		{
+			name:         "large oversize skips from 610k to 470k",
+			currentIndex: 0,
+			outputSize:   314168,
+			wantIndex:    5,
+		},
+		{
+			name:         "moderate oversize skips from 610k to 530k",
+			currentIndex: 0,
+			outputSize:   277744,
+			wantIndex:    3,
+		},
+		{
+			name:         "small oversize skips from 560k to 500k",
+			currentIndex: 2,
+			outputSize:   262688,
+			wantIndex:    4,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := nextWebmRateControlIndexAfterOversize(kakaoWebmRateControls, tt.currentIndex, tt.outputSize)
+			if got != tt.wantIndex {
+				t.Fatalf("next index = %d (%s), want %d (%s)",
+					got, kakaoWebmRateControls[got].bitrate,
+					tt.wantIndex, kakaoWebmRateControls[tt.wantIndex].bitrate)
+			}
+		})
+	}
+}
+
 func TestKakaoAnimatedWebpToWebmPreservesVariableDelayDuration(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping ffmpeg/ImageMagick integration test in short mode")
