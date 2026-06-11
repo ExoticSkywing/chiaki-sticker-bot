@@ -159,7 +159,7 @@ func sendPrivacy(c tele.Context) error {
 This bot collects limited data to operate and improve the service.
 
 <b>What we collect:</b>
-• <b>Usage events</b> — when you use /import, your Telegram user ID, display name, and the action type are logged with a timestamp. This is used to understand overall usage patterns.
+• <b>Failure events</b> — if /import fails, your ID, action type, and failure reason are logged for diagnosing.
 • <b>Sticker ownership</b> — if you use /import or /create successfully, your user ID is associated with the sticker set so that /manage can identify your sets.
 
 <b>What we do NOT collect:</b>
@@ -175,7 +175,7 @@ This bot is free and open source: https://github.com/akira02/chiaki-sticker-bot
 本 bot 會收集有限的資料以維持服務運作。
 
 <b>收集的資料：</b>
-• <b>使用紀錄</b> — 當您使用 /import 時，您的 Telegram 用戶 ID、顯示名稱及動作類型會連同時間戳記一併儲存，用於了解整體使用情況。
+• <b>使用紀錄</b> — 當您使用 /import 時，您的 ID、動作類型及失敗原因會被記錄，用於診斷問題。
 • <b>貼圖包歸屬</b> — 當您成功使用 /import 或 /create 時，您的用戶 ID 會與所建立的貼圖包關聯，以供 /manage 識別您的貼圖包。
 
 <b>不收集的資料：</b>

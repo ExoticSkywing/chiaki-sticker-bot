@@ -62,8 +62,9 @@ value: -1
 
 var db *sql.DB
 
-const DB_VER = "6"
+const DB_VER = "7"
 const defaultDatabaseCurationBatchSize = 100
+const createEventsTableSQL = "CREATE TABLE events (id BIGINT AUTO_INCREMENT PRIMARY KEY, user_id BIGINT NOT NULL, action VARCHAR(32) NOT NULL, pack_id VARCHAR(128), status VARCHAR(16) NOT NULL, reason TEXT NOT NULL, ts DATETIME DEFAULT CURRENT_TIMESTAMP, INDEX idx_user (user_id), INDEX idx_ts (ts))"
 
 func initDB(dbname string) error {
 	addr := msbconf.DbAddr
@@ -159,6 +160,12 @@ func checkUpgradeDatabase(queriedDbVer string) {
 		db.Exec("UPDATE properties SET value=? WHERE name=?", "6", "DB_VER")
 		log.Info("Upgraded DB_VER to 6: dropped username and first_name from events")
 	}
+	if queriedDbVer == "1" || queriedDbVer == "2" || queriedDbVer == "3" || queriedDbVer == "4" || queriedDbVer == "5" || queriedDbVer == "6" {
+		db.Exec("DROP TABLE IF EXISTS events")
+		db.Exec(createEventsTableSQL)
+		db.Exec("UPDATE properties SET value=? WHERE name=?", "7", "DB_VER")
+		log.Info("Upgraded DB_VER to 7: recreated events table for fail events with reasons")
+	}
 }
 
 func createMariadb(dsn *mysql.Config, dbname string) error {
@@ -173,7 +180,7 @@ func createMariadb(dsn *mysql.Config, dbname string) error {
 	db.Exec("CREATE TABLE line (line_id VARCHAR(128), tg_id VARCHAR(128), tg_title VARCHAR(255), line_link VARCHAR(512), auto_emoji BOOL)")
 	db.Exec("CREATE TABLE properties (name VARCHAR(128) PRIMARY KEY, value VARCHAR(128))")
 	db.Exec("CREATE TABLE stickers (user_id BIGINT, tg_id VARCHAR(128), tg_title VARCHAR(255), timestamp BIGINT)")
-	db.Exec("CREATE TABLE events (id BIGINT AUTO_INCREMENT PRIMARY KEY, user_id BIGINT NOT NULL, action VARCHAR(32) NOT NULL, pack_id VARCHAR(128), status VARCHAR(16), ts DATETIME DEFAULT CURRENT_TIMESTAMP, INDEX idx_user (user_id), INDEX idx_ts (ts))")
+	db.Exec(createEventsTableSQL)
 	db.Exec("CREATE TABLE IF NOT EXISTS users (user_id BIGINT PRIMARY KEY, username VARCHAR(64), display_name VARCHAR(128), updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP)")
 	db.Exec("INSERT properties (name, value) VALUES (?, ?)", "last_line_dedup_index", "-1")
 	db.Exec("INSERT properties (name, value) VALUES (?, ?)", "DB_VER", DB_VER)
@@ -541,16 +548,16 @@ func queryCurationIDs(query string, after string, limit int) ([]string, error) {
 // 	return index
 // }
 
-func insertEvent(userID int64, username string, displayName string, action string, packID string, status string) {
+func insertFailedEvent(userID int64, username string, displayName string, action string, packID string, reason string) {
 	if db == nil {
 		return
 	}
 	_, err := db.Exec(
-		"INSERT INTO events (user_id, action, pack_id, status) VALUES (?, ?, ?, ?)",
-		userID, action, packID, status,
+		"INSERT INTO events (user_id, action, pack_id, status, reason) VALUES (?, ?, ?, ?, ?)",
+		userID, action, packID, "fail", reason,
 	)
 	if err != nil {
-		log.Debugln("insertEvent error:", err)
+		log.Debugln("insertFailedEvent error:", err)
 	}
 	// Upsert into users table.
 	db.Exec(

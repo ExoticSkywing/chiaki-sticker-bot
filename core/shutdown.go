@@ -76,19 +76,19 @@ func recordShutdownSessionFailure(s shutdownSession) {
 	if strings.TrimSpace(action) == "" {
 		action = "session"
 	}
-	insertShutdownEvent(s.uid, action, packID, "fail: deployment interrupted, retry required")
+	insertShutdownFailedEvent(s.uid, action, packID, "deployment interrupted, retry required")
 }
 
-func insertShutdownEvent(userID int64, action string, packID string, status string) {
+func insertShutdownFailedEvent(userID int64, action string, packID string, reason string) {
 	if db == nil {
 		return
 	}
 	_, err := db.Exec(
-		"INSERT INTO events (user_id, action, pack_id, status) VALUES (?, ?, ?, ?)",
-		userID, action, packID, status,
+		"INSERT INTO events (user_id, action, pack_id, status, reason) VALUES (?, ?, ?, ?, ?)",
+		userID, action, packID, "fail", reason,
 	)
 	if err != nil {
-		log.Debugln("insertShutdownEvent error:", err)
+		log.Debugln("insertShutdownFailedEvent error:", err)
 	}
 }
 

@@ -228,9 +228,9 @@ func onError(err error, c tele.Context) {
 			action = "import_" + ud.lineData.Store
 			packID = ud.lineData.Id
 		}
-		go insertEvent(c.Sender().ID, c.Sender().Username,
+		go insertFailedEvent(c.Sender().ID, c.Sender().Username,
 			strings.TrimSpace(c.Sender().FirstName+" "+c.Sender().LastName),
-			action, packID, "fail: "+err.Error())
+			action, packID, err.Error())
 	}
 	sendFatalError(err, c)
 	cleanUserDataAndDir(c.Sender().ID)
