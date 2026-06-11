@@ -1,6 +1,7 @@
 package core
 
 import (
+	"context"
 	"errors"
 	"math/rand"
 	"os"
@@ -21,12 +22,12 @@ var errNoStickerAvailable = errors.New("no sticker available")
 // Final stage of automated sticker submission.
 // Automated means all emojis are same.
 func submitStickerSetAuto(createSet bool, c tele.Context) error {
-	uid := c.Sender().ID
 	ud := udFromCtx(c)
 	pText, teleMsg, _ := sendProcessStarted(ud, c, "Waiting...")
 	ud.wg.Wait()
-
-	defer cleanUserData(uid)
+	if err := sessionContextErr(ud); err != nil {
+		return err
+	}
 
 	if len(ud.stickerData.stickers) == 0 {
 		log.Error("No sticker to commit!")
@@ -54,13 +55,16 @@ func submitStickerSetAuto(createSet bool, c tele.Context) error {
 	convTotal := len(ud.stickerData.stickers)
 	lastConvProgressEdit := time.Time{}
 	for i, sf := range ud.stickerData.stickers {
+		if err := sessionContextErr(ud); err != nil {
+			return err
+		}
 		lastConvProgressEdit = waitStickerConversionProgress(sf, i, convTotal, lastConvProgressEdit, pText, teleMsg, c)
 	}
 
 	//Try batch create.
 	var batchCreateSuccess bool
 	if createSet {
-		err := createStickerSetBatch(ud.stickerData.stickers, c, ssName, ssTitle, ssType)
+		err := createStickerSetBatch(ud.ctx, ud.stickerData.stickers, c, ssName, ssTitle, ssType)
 		if err != nil {
 			log.Warnln("sticker.go: Error batch create:", err.Error())
 		} else {
@@ -77,6 +81,9 @@ func submitStickerSetAuto(createSet bool, c tele.Context) error {
 	//One by one commit.
 	for index, sf := range ud.stickerData.stickers {
 		var err error
+		if err := sessionContextErr(ud); err != nil {
+			return err
+		}
 
 		//Sticker set already finished.
 		if batchCreateSuccess && len(ud.stickerData.stickers) < 51 {
@@ -146,6 +153,13 @@ func submitStickerSetAuto(createSet bool, c tele.Context) error {
 	c.Send("If you like this bot, please give us a ⭐️\n如果你喜歡這個 Bot，請幫我們按個 ⭐️\nhttps://github.com/akira02/chiaki-sticker-bot")
 	sendSFromSS(c, ud.stickerData.id, teleMsg)
 	return nil
+}
+
+func sessionContextErr(ud *UserData) error {
+	if ud == nil || ud.ctx == nil {
+		return nil
+	}
+	return ud.ctx.Err()
 }
 
 func waitStickerConversionProgress(sf *StickerFile, index int, total int, lastEdit time.Time, pText string, teleMsg *tele.Message, c tele.Context) time.Time {
@@ -385,11 +399,16 @@ func createStickerSet(safeMode bool, sf *StickerFile, c tele.Context, name strin
 // Create sticker set with multiple StickerFile.
 // API 7.2 feature, consider it experimental.
 // If it failed, no retry, just return error and we try conventional way.
-func createStickerSetBatch(sfs []*StickerFile, c tele.Context, name string, title string, ssType string) error {
+func createStickerSetBatch(ctx context.Context, sfs []*StickerFile, c tele.Context, name string, title string, ssType string) error {
 	var inputs []tele.InputSticker
 	log.Debugln("createStickerSetBatch: attempting, batch creation:", name)
 
 	for i, sf := range sfs {
+		if ctx != nil {
+			if err := ctx.Err(); err != nil {
+				return err
+			}
+		}
 		sf.wg.Wait()
 		file := sf.cPath
 		if err := validateStickerInput(sf, file); err != nil {
@@ -414,6 +433,11 @@ func createStickerSetBatch(sfs []*StickerFile, c tele.Context, name string, titl
 		}
 	}
 
+	if ctx != nil {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+	}
 	return c.Bot().CreateStickerSet(c.Recipient(), inputs, name, title, ssType)
 }
 

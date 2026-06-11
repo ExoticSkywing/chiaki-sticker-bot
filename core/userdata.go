@@ -17,16 +17,14 @@ func cleanUserDataAndDir(uid int64) bool {
 	ud, exist := users.data[uid]
 	if exist {
 		workDir := ud.workDir
-		cancel := ud.cancel
 		delete(users.data, uid)
 		activeSessionsWg.Done()
 		users.mu.Unlock()
 		// Cancel in-flight work (e.g. conversion goroutines) before wiping the dir,
 		// otherwise queued workers keep running against a half-deleted directory.
-		if cancel != nil {
-			cancel()
-		}
+		ud.closeSessionWork()
 		ud.wg.Wait()
+		ud.activeWg.Wait()
 		os.RemoveAll(workDir)
 		log.WithField("uid", uid).Debugln("Userdata purged from map and disk.")
 		return true
@@ -124,6 +122,34 @@ func checkState(next tele.HandlerFunc) tele.HandlerFunc {
 			return sendInStateWarning(c)
 		}
 	}
+}
+
+func (ud *UserData) beginSessionWork() bool {
+	ud.mu.Lock()
+	defer ud.mu.Unlock()
+	if ud.closing {
+		return false
+	}
+	if ud.ctx != nil && ud.ctx.Err() != nil {
+		return false
+	}
+	ud.activeWg.Add(1)
+	return true
+}
+
+func (ud *UserData) endSessionWork() {
+	ud.activeWg.Done()
+}
+
+func (ud *UserData) closeSessionWork() {
+	ud.mu.Lock()
+	if !ud.closing {
+		ud.closing = true
+		if ud.cancel != nil {
+			ud.cancel()
+		}
+	}
+	ud.mu.Unlock()
 }
 
 func setState(c tele.Context, state string) {

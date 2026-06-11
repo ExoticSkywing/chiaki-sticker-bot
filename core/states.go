@@ -566,11 +566,25 @@ func waitEmojiChoice(c tele.Context) error {
 
 	setState(c, ST_PROCESSING)
 
+	if !ud.beginSessionWork() {
+		if ud.ctx != nil && ud.ctx.Err() != nil {
+			return ud.ctx.Err()
+		}
+		return nil
+	}
+	sessionWorkDone := false
+	defer func() {
+		if !sessionWorkDone {
+			ud.endSessionWork()
+		}
+	}()
 	err := submitStickerSetAuto(!(ud.command == "manage"), c)
-	endSession(c)
+	ud.endSessionWork()
+	sessionWorkDone = true
 	if err != nil {
 		return err
 	}
+	endSession(c)
 	return nil
 }
 

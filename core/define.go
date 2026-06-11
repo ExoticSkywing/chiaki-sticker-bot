@@ -91,8 +91,12 @@ type WebAppUser struct {
 
 // Unique user data for one user and one session.
 type UserData struct {
+	mu      sync.Mutex
+	closing bool
 	//waitgroup for sticker set, wait before commit.
 	wg sync.WaitGroup
+	//waitgroup for active submit work that must finish before deleting workDir.
+	activeWg sync.WaitGroup
 	//commit channel for emoji assign
 	commitChans []chan bool
 	ctx         context.Context
