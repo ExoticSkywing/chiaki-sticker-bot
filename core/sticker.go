@@ -321,6 +321,19 @@ func validateStickerInput(sf *StickerFile, file string) error {
 	return nil
 }
 
+func isTelegramTemporaryServerError(err error) bool {
+	if err == nil {
+		return false
+	}
+	errText := strings.ToLower(err.Error())
+	return strings.Contains(errText, "gateway timeout") ||
+		strings.Contains(errText, "bad gateway") ||
+		strings.Contains(errText, "service unavailable") ||
+		strings.Contains(errText, "(502)") ||
+		strings.Contains(errText, "(503)") ||
+		strings.Contains(errText, "(504)")
+}
+
 // Create sticker set if needed.
 func createStickerSet(safeMode bool, sf *StickerFile, c tele.Context, name string, title string, ssType string) error {
 	var file string
@@ -374,6 +387,11 @@ func createStickerSet(safeMode bool, sf *StickerFile, c tele.Context, name strin
 				sleepSec = 120
 			}
 			log.Warnf("createStickerSet: flood limit, sleeping %ds (attempt %d/3).", sleepSec, i+1)
+			time.Sleep(time.Duration(sleepSec) * time.Second)
+			continue
+		} else if isTelegramTemporaryServerError(err) {
+			sleepSec := 5 + i*10
+			log.Warnf("createStickerSet: temporary Telegram server error, sleeping %ds (attempt %d/3): %v", sleepSec, i+1, err)
 			time.Sleep(time.Duration(sleepSec) * time.Second)
 			continue
 		} else if strings.Contains(strings.ToLower(err.Error()), "video_long") {

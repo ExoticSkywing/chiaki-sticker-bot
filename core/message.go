@@ -523,10 +523,16 @@ func sendFatalError(err error, c tele.Context) {
 	if err != nil {
 		errMsg = err.Error()
 		errMsg = strings.ReplaceAll(errMsg, msbconf.BotToken, "***")
-		if strings.Contains(errMsg, "500") {
-			errMsg += "\nThis is an internal error of Telegram server, we could do nothing but wait for its recover. Please try again later.\n" +
-				"Telegram 伺服器發生錯誤，請稍候再試\n"
-		}
+		errMsg = strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;").Replace(errMsg)
+	}
+
+	if isTelegramTemporaryServerError(err) {
+		c.Send("<b>Telegram server is temporarily unavailable. Please try again later. /start\n"+
+			"Telegram 伺服器暫時回應逾時或發生錯誤，請稍後再試。</b>\n\n"+
+			"This is usually a temporary Telegram-side issue, not a problem with your sticker link.\n"+
+			"這通常是 Telegram 端暫時性問題，不是你的貼圖連結錯誤。\n\n"+
+			"<code>"+errMsg+"</code>", tele.ModeHTML, tele.NoPreview)
+		return
 	}
 
 	c.Send("<b>Fatal error encounterd. Please try again. /start\n"+
