@@ -67,6 +67,15 @@ func submitStickerSetAuto(createSet bool, c tele.Context) error {
 		err := createStickerSetBatch(ud.ctx, ud.stickerData.stickers, c, ssName, ssTitle, ssType)
 		if err != nil {
 			log.Warnln("sticker.go: Error batch create:", err.Error())
+			if reconcileOccupiedBatchCreate(c, err, ssName, len(ud.stickerData.stickers)) {
+				log.Warnln("sticker.go: Batch create returned SHORTNAME_OCCUPY_FAILED, but sticker set exists; treating batch create as success.")
+				batchCreateSuccess = true
+				if len(ud.stickerData.stickers) < 51 {
+					committedStickers = len(ud.stickerData.stickers)
+				} else {
+					committedStickers = 50
+				}
+			}
 		} else {
 			log.Debugln("sticker.go: Batch create success.")
 			batchCreateSuccess = true
@@ -406,6 +415,39 @@ func createStickerSet(safeMode bool, sf *StickerFile, c tele.Context, name strin
 		}
 	}
 	return errors.New("createStickerSet: exceeded retry limit due to flood limit")
+}
+
+func reconcileOccupiedBatchCreate(c tele.Context, createErr error, name string, stickerCount int) bool {
+	if createErr == nil || !strings.Contains(strings.ToLower(createErr.Error()), "shortname_occupy_failed") {
+		return false
+	}
+	if stickerCount <= 0 {
+		return false
+	}
+
+	expectedCount := stickerCount
+	if expectedCount > 50 {
+		expectedCount = 50
+	}
+
+	for i := 0; i < 5; i++ {
+		ss, err := c.Bot().StickerSet(name)
+		if err == nil {
+			gotCount := len(ss.Stickers)
+			if gotCount >= expectedCount {
+				log.Warnf("reconcileOccupiedBatchCreate: found existing set:%s with %d stickers, expected at least %d.", name, gotCount, expectedCount)
+				return true
+			}
+			log.Warnf("reconcileOccupiedBatchCreate: found existing set:%s, but sticker count is %d, expected at least %d.", name, gotCount, expectedCount)
+			return false
+		}
+
+		if i < 4 {
+			time.Sleep(2 * time.Second)
+		}
+	}
+
+	return false
 }
 
 // Create sticker set with multiple StickerFile.
