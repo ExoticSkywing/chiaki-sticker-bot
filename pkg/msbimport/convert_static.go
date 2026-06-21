@@ -1,6 +1,7 @@
 package msbimport
 
 import (
+	"context"
 	"errors"
 	"os"
 	"os/exec"
@@ -12,6 +13,13 @@ import (
 // Convert any image to static WEBP image, for Telegram use.
 // `format` takes either FORMAT_TG_REGULAR_STATIC or FORMAT_TG_EMOJI_STATIC
 func IMToWebpTGStatic(f string, isCustomEmoji bool) (string, error) {
+	return IMToWebpTGStaticContext(context.Background(), f, isCustomEmoji)
+}
+
+func IMToWebpTGStaticContext(ctx context.Context, f string, isCustomEmoji bool) (string, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	pathOut := f + ".webp"
 	bin := CONVERT_BIN
 	args := append([]string{}, CONVERT_ARGS...)
@@ -24,8 +32,14 @@ func IMToWebpTGStatic(f string, isCustomEmoji bool) (string, error) {
 	}
 	args = append(args, "-define", "webp:lossless=true", pathOut)
 
-	out, err := exec.Command(bin, args...).CombinedOutput()
+	runCtx, cancel := context.WithTimeout(ctx, imageMagickTimeout)
+	out, err := exec.CommandContext(runCtx, bin, args...).CombinedOutput()
+	ctxErr := runCtx.Err()
+	cancel()
 	if err != nil {
+		if ctxErr != nil {
+			return "", ctxErr
+		}
 		log.Warnln("IMToWebpTGRegular ERROR:", string(out))
 		return "", err
 	}
@@ -40,7 +54,17 @@ func IMToWebpTGStatic(f string, isCustomEmoji bool) (string, error) {
 		args := append([]string{}, CONVERT_ARGS...)
 		args = append(args, imageMagickResourceArgs()...)
 		args = append(args, f+"[0]", "-background", "none", "-alpha", "on", "-filter", "Lanczos", "-resize", "512x512", pathOut)
-		exec.Command(bin, args...).CombinedOutput()
+		runCtx, cancel := context.WithTimeout(ctx, imageMagickTimeout)
+		out, err := exec.CommandContext(runCtx, bin, args...).CombinedOutput()
+		ctxErr := runCtx.Err()
+		cancel()
+		if err != nil {
+			if ctxErr != nil {
+				return "", ctxErr
+			}
+			log.Warnln("IMToWebpTGRegular fallback ERROR:", string(out))
+			return "", err
+		}
 	}
 
 	return pathOut, err

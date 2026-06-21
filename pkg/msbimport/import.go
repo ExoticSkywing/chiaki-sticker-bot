@@ -82,7 +82,7 @@ func convertSToTGFormat(ctx context.Context, ld *LineData) {
 		if ld.IsAnimated {
 			wpConvertWebm.Invoke(s)
 		} else {
-			s.ConvertedFile, err = IMToWebpTGStatic(s.OriginalFile, s.ConvertToEmoji)
+			s.ConvertedFile, err = IMToWebpTGStaticContext(ctx, s.OriginalFile, s.ConvertToEmoji)
 			if err != nil {
 				if ctx.Err() != nil {
 					s.CError = ctx.Err()

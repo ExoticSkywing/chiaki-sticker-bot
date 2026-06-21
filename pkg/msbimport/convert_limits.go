@@ -13,6 +13,14 @@ import (
 // ffmpeg would otherwise block every queued conversion indefinitely.
 const ffmpegTimeout = 120 * time.Second
 
+// Hard ceiling for ImageMagick operations. Static conversions are usually
+// quick; this keeps a stuck convert process from blocking an import forever.
+const imageMagickTimeout = 120 * time.Second
+
+// Hard ceiling for CDN archive downloads. The normal HTTP client has a short
+// timeout, but curl-based archive downloads need their own guard.
+const archiveDownloadTimeout = 120 * time.Second
+
 // Telegram rejects video stickers longer than 3s. Sources beyond this can skip
 // the first regular encode and go straight to safe mode, while sources at or
 // below the limit still get a normal encode so we avoid trimming unnecessarily.

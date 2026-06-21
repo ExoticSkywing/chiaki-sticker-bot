@@ -235,7 +235,7 @@ func prepareLineStickers(ctx context.Context, ld *LineData, workDir string, conv
 	savePath := filepath.Join(workDir, "line.zip")
 	os.MkdirAll(workDir, 0755)
 
-	err := fDownload(ld.DLink, savePath)
+	err := fDownload(ctx, ld.DLink, savePath)
 	if err != nil {
 		return err
 	}
@@ -402,6 +402,10 @@ func prepareLineMessageS(ctx context.Context, ld *LineData, workDir string, need
 			select {
 			case <-ctx.Done():
 				log.Warn("prepLineMessageS received ctxDone!")
+				for j := i; j < len(ld.Files); j++ {
+					ld.Files[j].CError = ctx.Err()
+					ld.Files[j].Wg.Done()
+				}
 				return
 			default:
 			}

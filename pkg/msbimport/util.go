@@ -1,6 +1,7 @@
 package msbimport
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
@@ -121,10 +122,28 @@ func httpGetAndroidUA(link string) (string, error) {
 	return string(content), nil
 }
 
-func fDownload(link string, savePath string) error {
-	cmd := exec.Command("curl", "-o", savePath, link)
-	_, err := cmd.CombinedOutput()
-	return err
+func fDownload(ctx context.Context, link string, savePath string) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	runCtx, cancel := context.WithTimeout(ctx, archiveDownloadTimeout)
+	defer cancel()
+	cmd := exec.CommandContext(runCtx, "curl",
+		"-L",
+		"--fail",
+		"--connect-timeout", "10",
+		"--max-time", fmt.Sprintf("%.0f", archiveDownloadTimeout.Seconds()),
+		"-o", savePath,
+		link,
+	)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		if runCtx.Err() != nil {
+			return runCtx.Err()
+		}
+		return fmt.Errorf("fDownload: %w: %s", err, strings.TrimSpace(string(out)))
+	}
+	return nil
 }
 
 func fExtract(f string) string {
