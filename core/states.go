@@ -449,7 +449,11 @@ func waitSFile(c tele.Context) error {
 		return sendPromptStopAdding(c)
 	}
 NEXT:
-	if len(udFromCtx(c).stickerData.stickers) == 0 {
+	ud := udFromCtx(c)
+	if ud == nil || ud.stickerData == nil {
+		return nil
+	}
+	if len(ud.stickerData.stickers) == 0 {
 		return c.Send("No image received. try again or /quit")
 	}
 
@@ -535,16 +539,34 @@ NEXT:
 
 func waitEmojiChoice(c tele.Context) error {
 	ud := udFromCtx(c)
+	if ud == nil || ud.stickerData == nil {
+		return nil
+	}
 	if c.Callback() != nil {
 		switch c.Callback().Data {
 		case "random":
 			ud.stickerData.emojis = []string{"⭐"}
 		case "manual":
+			if !ud.beginSessionWork() {
+				if err := sessionContextErr(ud); err != nil {
+					return err
+				}
+				return nil
+			}
+			defer ud.endSessionWork()
+
 			sendProcessStarted(ud, c, "preparing...")
 			setState(c, ST_PROCESSING)
 			ud.wg.Wait()
-			for range ud.stickerData.stickers {
-				ud.commitChans = append(ud.commitChans, make(chan bool))
+			if err := sessionContextErr(ud); err != nil {
+				return err
+			}
+			if len(ud.stickerData.stickers) == 0 {
+				return errNoStickerAvailable
+			}
+			ud.commitChans = make([]chan bool, len(ud.stickerData.stickers))
+			for i := range ud.stickerData.stickers {
+				ud.commitChans[i] = make(chan bool)
 			}
 			setState(c, "waitSEmojiAssign")
 			return sendAskEmojiAssign(c)
@@ -595,6 +617,9 @@ func waitSEmojiAssign(c tele.Context) error {
 	}
 
 	ud := udFromCtx(c)
+	if ud == nil || ud.stickerData == nil {
+		return nil
+	}
 	setState(c, ST_PROCESSING)
 
 	err := submitStickerManual(!(ud.command == "manage"), ud.stickerData.pos, emojiList, keywordList, c)
@@ -605,9 +630,8 @@ func waitSEmojiAssign(c tele.Context) error {
 	if ud.stickerData.pos == ud.stickerData.lAmount {
 		return sendProcessingStickers(c)
 	} else {
-		sendAskEmojiAssign(c)
 		setState(c, "waitSEmojiAssign")
-		return nil
+		return sendAskEmojiAssign(c)
 	}
 }
 

@@ -471,15 +471,34 @@ func sendAskSTypeToCreate(c tele.Context) error {
 }
 
 func sendAskEmojiAssign(c tele.Context) error {
-	sd := users.data[c.Sender().ID].stickerData
+	ud := udFromCtx(c)
+	if ud == nil || ud.stickerData == nil {
+		return nil
+	}
+	sd := ud.stickerData
+	if sd.pos < 0 || sd.pos >= len(sd.stickers) {
+		log.Errorf("No sticker available for emoji assignment at pos %d, total %d", sd.pos, len(sd.stickers))
+		return errNoStickerAvailable
+	}
 	sf := sd.stickers[sd.pos]
+	if sf == nil {
+		log.Errorf("Sticker data is nil for emoji assignment at pos %d", sd.pos)
+		return errNoStickerAvailable
+	}
 	sf.wg.Wait()
+	if err := sessionContextErr(ud); err != nil {
+		return err
+	}
+	total := sd.lAmount
+	if total == 0 {
+		total = len(sd.stickers)
+	}
 	caption := fmt.Sprintf(`
 Send emoji(s) representing this sticker.
 請傳送代表這個貼圖的emoji(可以多個).
 
 %d of %d
-`, sd.pos+1, sd.lAmount)
+`, sd.pos+1, total)
 
 	if sf.fileID != "" {
 		msg, _ := c.Bot().Send(c.Sender(), &tele.Sticker{
@@ -495,17 +514,17 @@ Send emoji(s) representing this sticker.
 	})
 	if err != nil {
 		err2 := c.Send(&tele.Video{
-			File:    tele.FromDisk(sd.stickers[sd.pos].oPath),
+			File:    tele.FromDisk(sf.oPath),
 			Caption: caption,
 		})
 		if err2 != nil {
 			err3 := c.Send(&tele.Document{
-				File:     tele.FromDisk(sd.stickers[sd.pos].oPath),
-				FileName: filepath.Base(sd.stickers[sd.pos].oPath),
+				File:     tele.FromDisk(sf.oPath),
+				FileName: filepath.Base(sf.oPath),
 				Caption:  caption,
 			})
 			if err3 != nil {
-				err4 := c.Send(&tele.Sticker{File: tele.File{FileID: sd.stickers[sd.pos].oPath}})
+				err4 := c.Send(&tele.Sticker{File: tele.File{FileID: sf.oPath}})
 				if err4 != nil {
 					return err4
 				}
