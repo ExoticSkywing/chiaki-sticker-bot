@@ -72,23 +72,22 @@ func submitStickerSetAuto(createSet bool, c tele.Context) error {
 		err := createStickerSetBatch(ud.ctx, ud.stickerData.stickers, c, ssName, ssTitle, ssType)
 		if err != nil {
 			log.Warnln("sticker.go: Error batch create:", sanitizeErrorText(err))
-			if reconcileBatchCreateAfterError(c, err, ssName, len(ud.stickerData.stickers)) {
+			existingCount, exists := existingStickerSetCount(c, ssName)
+			expectedBatchCount := batchCreateExpectedCount(len(ud.stickerData.stickers))
+			if exists && existingCount >= expectedBatchCount {
 				log.Warnln("sticker.go: Batch create failed locally, but sticker set exists; treating batch create as success.")
 				batchCreateSuccess = true
-				if len(ud.stickerData.stickers) < 51 {
-					committedStickers = len(ud.stickerData.stickers)
-				} else {
-					committedStickers = 50
+				committedStickers = expectedBatchCount
+			} else if exists && existingCount > 0 {
+				log.Warnf("sticker.go: Batch create partially created %d/%d stickers; deleting set before fallback.", existingCount, expectedBatchCount)
+				if err := deleteStickerSet(c, ssName); err != nil {
+					return fmt.Errorf("batch create partially created sticker set %s with %d/%d stickers, and cleanup failed: %w", ssName, existingCount, expectedBatchCount, err)
 				}
 			}
 		} else {
 			log.Debugln("sticker.go: Batch create success.")
 			batchCreateSuccess = true
-			if len(ud.stickerData.stickers) < 51 {
-				committedStickers = len(ud.stickerData.stickers)
-			} else {
-				committedStickers = 50
-			}
+			committedStickers = batchCreateExpectedCount(len(ud.stickerData.stickers))
 		}
 	}
 
@@ -457,31 +456,16 @@ func reconcileOccupiedBatchCreate(c tele.Context, createErr error, name string, 
 	return reconcileCreatedStickerSet(c, name, stickerCount)
 }
 
-func reconcileBatchCreateAfterError(c tele.Context, createErr error, name string, stickerCount int) bool {
-	if createErr == nil {
-		return false
-	}
-	errText := strings.ToLower(createErr.Error())
-	if !strings.Contains(errText, "shortname_occupy_failed") && !isRetryableTelegramWriteError(createErr) {
-		return false
-	}
-	return reconcileCreatedStickerSet(c, name, stickerCount)
-}
-
 func reconcileCreatedStickerSet(c tele.Context, name string, stickerCount int) bool {
 	if stickerCount <= 0 {
 		return false
 	}
 
-	expectedCount := stickerCount
-	if expectedCount > 50 {
-		expectedCount = 50
-	}
+	expectedCount := batchCreateExpectedCount(stickerCount)
 
 	for i := 0; i < 5; i++ {
-		ss, err := c.Bot().StickerSet(name)
-		if err == nil {
-			gotCount := len(ss.Stickers)
+		gotCount, ok := existingStickerSetCount(c, name)
+		if ok {
 			if gotCount >= expectedCount {
 				log.Warnf("reconcileCreatedStickerSet: found existing set:%s with %d stickers, expected at least %d.", name, gotCount, expectedCount)
 				return true
@@ -489,16 +473,52 @@ func reconcileCreatedStickerSet(c tele.Context, name string, stickerCount int) b
 			log.Warnf("reconcileCreatedStickerSet: found existing set:%s, but sticker count is %d, expected at least %d.", name, gotCount, expectedCount)
 			return false
 		}
-		if isRetryableTelegramWriteError(err) {
-			log.Warnf("reconcileCreatedStickerSet: StickerSet lookup failed, retrying: %s", sanitizeErrorText(err))
-		}
-
 		if i < 4 {
 			time.Sleep(2 * time.Second)
 		}
 	}
 
 	return false
+}
+
+func existingStickerSetCount(c tele.Context, name string) (int, bool) {
+	ss, err := c.Bot().StickerSet(name)
+	if err == nil {
+		return len(ss.Stickers), true
+	}
+	if isRetryableTelegramWriteError(err) {
+		log.Warnf("existingStickerSetCount: StickerSet lookup failed, retrying: %s", sanitizeErrorText(err))
+	}
+	return 0, false
+}
+
+func batchCreateExpectedCount(stickerCount int) int {
+	if stickerCount > 50 {
+		return 50
+	}
+	return stickerCount
+}
+
+func deleteStickerSet(c tele.Context, name string) error {
+	var lastErr error
+	for i := 0; i < telegramStickerAPIAttempts; i++ {
+		_, err := c.Bot().Raw("deleteStickerSet", map[string]string{"name": name})
+		if err == nil {
+			log.Warnf("deleteStickerSet: deleted partial sticker set:%s.", name)
+			return nil
+		}
+		lastErr = err
+		if !isRetryableTelegramWriteError(err) {
+			return err
+		}
+		if i == telegramStickerAPIAttempts-1 {
+			break
+		}
+		sleepTime := telegramStickerRetryDelay(i)
+		log.Warnf("deleteStickerSet: retryable Telegram error, sleeping %s (attempt %d/%d): %s", sleepTime, i+1, telegramStickerAPIAttempts, sanitizeErrorText(err))
+		time.Sleep(sleepTime)
+	}
+	return fmt.Errorf("deleteStickerSet: exceeded retry limit: %w", lastErr)
 }
 
 // Create sticker set with multiple StickerFile.
@@ -555,6 +575,10 @@ func createStickerSetBatch(ctx context.Context, sfs []*StickerFile, c tele.Conte
 			return nil
 		}
 		lastErr = err
+		if reconcileCreatedStickerSet(c, name, len(inputs)) {
+			log.Warnf("createStickerSetBatch: create returned error, but set exists; treating as success: %s", sanitizeErrorText(err))
+			return nil
+		}
 		if !isRetryableTelegramWriteError(err) {
 			return err
 		}
