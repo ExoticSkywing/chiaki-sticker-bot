@@ -3,6 +3,7 @@ package msbimport
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 )
 
 // Line sticker types
@@ -114,6 +115,10 @@ type LineData struct {
 	//Is line emoji(emoticon).
 	IsEmoji bool
 	Amount  int
+	//Pack zip download progress in bytes. Read by the import progress UI.
+	//DLBytesTotal is 0 until the size is known (or if the CDN omits it).
+	DLBytesDone  atomic.Int64
+	DLBytesTotal atomic.Int64
 }
 
 type LineJson struct {

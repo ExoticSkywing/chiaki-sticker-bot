@@ -173,7 +173,7 @@ func prepareKakaoZipStickers(ctx context.Context, ld *LineData, workDir string, 
 	os.MkdirAll(workDir, 0755)
 
 	log.Debugln("prepareKakaoZipStickers: downloading zip:", ld.DLink)
-	err := fDownload(ctx, ld.DLink, zipPath)
+	err := fDownloadWithProgress(ctx, ld.DLink, zipPath, &ld.DLBytesDone, &ld.DLBytesTotal)
 	if err != nil {
 		return err
 	}

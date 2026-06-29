@@ -12,6 +12,7 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -123,11 +124,44 @@ func httpGetAndroidUA(link string) (string, error) {
 }
 
 func fDownload(ctx context.Context, link string, savePath string) error {
+	return fDownloadWithProgress(ctx, link, savePath, nil, nil)
+}
+
+// fDownloadWithProgress downloads link to savePath. When done/total are non-nil,
+// it reports byte progress: total is fetched up-front via a HEAD request (0 if the
+// CDN omits Content-Length), and done is polled from the partial file on disk so
+// the caller can surface a download progress bar.
+func fDownloadWithProgress(ctx context.Context, link string, savePath string, done *atomic.Int64, total *atomic.Int64) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
 	runCtx, cancel := context.WithTimeout(ctx, archiveDownloadTimeout)
 	defer cancel()
+
+	if total != nil {
+		if size := httpContentLength(runCtx, link); size > 0 {
+			total.Store(size)
+		}
+	}
+	if done != nil {
+		stop := make(chan struct{})
+		defer close(stop)
+		go func() {
+			ticker := time.NewTicker(500 * time.Millisecond)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-stop:
+					return
+				case <-ticker.C:
+					if fi, err := os.Stat(savePath); err == nil {
+						done.Store(fi.Size())
+					}
+				}
+			}
+		}()
+	}
+
 	cmd := exec.CommandContext(runCtx, "curl",
 		"--fail",
 		"--location",
@@ -145,7 +179,30 @@ func fDownload(ctx context.Context, link string, savePath string) error {
 		}
 		return fmt.Errorf("download failed for %s: %w: %s", link, err, strings.TrimSpace(string(out)))
 	}
+	if done != nil {
+		if fi, statErr := os.Stat(savePath); statErr == nil {
+			done.Store(fi.Size())
+		}
+	}
 	return nil
+}
+
+// httpContentLength issues a HEAD request and returns the Content-Length, or 0 if
+// unknown. Failures are non-fatal — progress just falls back to byte-count only.
+func httpContentLength(ctx context.Context, link string) int64 {
+	req, err := http.NewRequestWithContext(ctx, http.MethodHead, link, nil)
+	if err != nil {
+		return 0
+	}
+	res, err := httpClient.Do(req)
+	if err != nil {
+		return 0
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK || res.ContentLength < 0 {
+		return 0
+	}
+	return res.ContentLength
 }
 
 func fExtract(f string) string {

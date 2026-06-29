@@ -629,13 +629,22 @@ func waitImportPreparation(ud *UserData, pText string, teleMsg *tele.Message, c 
 		close(done)
 	}()
 
-	firstNotice := time.NewTimer(10 * time.Second)
-	heartbeat := time.NewTicker(30 * time.Second)
-	defer firstNotice.Stop()
-	defer heartbeat.Stop()
+	// Poll fast so the download byte counter updates smoothly, but only push an
+	// edit when the text actually changed (or every 30s as a keep-alive), to stay
+	// well under Telegram's edit rate limit.
+	ticker := time.NewTicker(2 * time.Second)
+	defer ticker.Stop()
 
+	lastText := ""
+	lastSend := time.Time{}
 	editWaiting := func() {
-		editProgressMsg(0, 0, importPreparationProgressText(ud), pText, teleMsg, c)
+		text := importPreparationProgressText(ud)
+		if text == lastText && time.Since(lastSend) < 30*time.Second {
+			return
+		}
+		editProgressMsg(0, 0, text, pText, teleMsg, c)
+		lastText = text
+		lastSend = time.Now()
 	}
 	editWaiting()
 
@@ -652,9 +661,7 @@ func waitImportPreparation(ud *UserData, pText string, teleMsg *tele.Message, c 
 				return errNoStickerAvailable
 			}
 			return nil
-		case <-firstNotice.C:
-			editWaiting()
-		case <-heartbeat.C:
+		case <-ticker.C:
 			editWaiting()
 		case <-ud.ctx.Done():
 			return ud.ctx.Err()
@@ -672,6 +679,16 @@ func importPreparationProgressText(ud *UserData) string {
 	// like a stuck progress bar to users, so the active case shows no counter.
 	if status.Position > 0 {
 		return fmt.Sprintf("<code>Waiting in import queue / 匯入排隊中...\n       position %d of %d</code>", status.Position, status.Waiting)
+	}
+	// While the pack zip is still downloading, show byte progress so it's clearly
+	// not stuck. Once the bytes are in (or size is unknown), fall back to the
+	// generic preparing/extracting message.
+	if ld := ud.lineData; ld != nil {
+		total := ld.DLBytesTotal.Load()
+		downloaded := ld.DLBytesDone.Load()
+		if total > 0 && downloaded < total {
+			return fmt.Sprintf("<code>Downloading pack / 下載貼圖包中...\n       %.1f / %.1f MB</code>", float64(downloaded)/1e6, float64(total)/1e6)
+		}
 	}
 	return "<code>Preparing import / 準備匯入中...</code>"
 }

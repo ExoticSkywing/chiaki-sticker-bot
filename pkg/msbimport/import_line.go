@@ -235,7 +235,7 @@ func prepareLineStickers(ctx context.Context, ld *LineData, workDir string, conv
 	savePath := filepath.Join(workDir, "line.zip")
 	os.MkdirAll(workDir, 0755)
 
-	err := fDownload(ctx, ld.DLink, savePath)
+	err := fDownloadWithProgress(ctx, ld.DLink, savePath, &ld.DLBytesDone, &ld.DLBytesTotal)
 	if err != nil {
 		return err
 	}
