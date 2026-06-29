@@ -119,7 +119,19 @@ type LineData struct {
 	//DLBytesTotal is 0 until the size is known (or if the CDN omits it).
 	DLBytesDone  atomic.Int64
 	DLBytesTotal atomic.Int64
+	//Post-download preparation stage, for the import progress UI.
+	PrepStage atomic.Int32
+	//Per-file progress within PREP_STAGE_PROCESSING (e.g. APNG sanitization).
+	PrepFilesDone  atomic.Int64
+	PrepFilesTotal atomic.Int64
 }
+
+// Preparation stages reported via LineData.PrepStage for the import progress UI.
+const (
+	PREP_STAGE_NONE       int32 = iota
+	PREP_STAGE_EXTRACTING       // unpacking the downloaded zip
+	PREP_STAGE_PROCESSING       // per-file post-processing (e.g. APNG fixup)
+)
 
 type LineJson struct {
 	Name string

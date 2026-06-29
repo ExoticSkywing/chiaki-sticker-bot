@@ -178,6 +178,8 @@ func prepareKakaoZipStickers(ctx context.Context, ld *LineData, workDir string, 
 		return err
 	}
 
+	ld.PrepStage.Store(PREP_STAGE_EXTRACTING)
+
 	kakaoFiles := kakaoZipExtract(zipPath, ld)
 	if len(kakaoFiles) == 0 {
 		log.Warnf("prepareKakaoZipStickers: no sticker files extracted. id:%s zip:%s", ld.Id, ld.DLink)

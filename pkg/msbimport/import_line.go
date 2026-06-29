@@ -240,6 +240,7 @@ func prepareLineStickers(ctx context.Context, ld *LineData, workDir string, conv
 		return err
 	}
 
+	ld.PrepStage.Store(PREP_STAGE_EXTRACTING)
 	pngFiles := lineZipExtract(savePath, ld)
 	if len(pngFiles) == 0 {
 		log.Warnf("prepareLineStickers: no sticker images extracted. id:%s category:%s zip:%s", ld.Id, ld.Category, ld.DLink)
@@ -293,7 +294,10 @@ func lineZipExtract(f string, ld *LineData) []string {
 		files = LsFiles(workDir, []string{".png"}, []string{"tab", "key", "json"})
 	}
 	if ld.IsAnimated {
-		sanitizeLinePNGs(files)
+		ld.PrepFilesDone.Store(0)
+		ld.PrepFilesTotal.Store(int64(len(files)))
+		ld.PrepStage.Store(PREP_STAGE_PROCESSING)
+		sanitizeLinePNGs(files, ld)
 	}
 	return files
 }
@@ -302,12 +306,15 @@ func lineZipExtract(f string, ld *LineData) []string {
 // FFMpeg's APNG demuxer could not parse it properly.
 // I have patched ffmpeg, however, compiling it for AArch64 is not easy.
 // Therefore, we are going to tackle the source itself by removing tEXt chunk.
-func sanitizeLinePNGs(files []string) bool {
+func sanitizeLinePNGs(files []string, ld *LineData) bool {
 	for _, f := range files {
 		ret := removeAPNGtEXtChunk(f)
 		if !ret {
 			log.Debugln("one file sanitization ignored:", f)
 			//do nothing.
+		}
+		if ld != nil {
+			ld.PrepFilesDone.Add(1)
 		}
 	}
 	return true

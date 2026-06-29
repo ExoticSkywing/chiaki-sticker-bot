@@ -680,14 +680,23 @@ func importPreparationProgressText(ud *UserData) string {
 	if status.Position > 0 {
 		return fmt.Sprintf("<code>Waiting in import queue / 匯入排隊中...\n       position %d of %d</code>", status.Position, status.Waiting)
 	}
-	// While the pack zip is still downloading, show byte progress so it's clearly
-	// not stuck. Once the bytes are in (or size is unknown), fall back to the
-	// generic preparing/extracting message.
+	// Show the concrete sub-phase so it's clearly not stuck: byte progress while
+	// the zip downloads, then extracting, then per-file processing for animated
+	// packs (APNG fixup is the slow part). Falls back to a generic message.
 	if ld := ud.lineData; ld != nil {
 		total := ld.DLBytesTotal.Load()
 		downloaded := ld.DLBytesDone.Load()
 		if total > 0 && downloaded < total {
 			return fmt.Sprintf("<code>Downloading pack / 下載貼圖包中...\n       %.1f / %.1f MB</code>", float64(downloaded)/1e6, float64(total)/1e6)
+		}
+		switch ld.PrepStage.Load() {
+		case msbimport.PREP_STAGE_EXTRACTING:
+			return "<code>Extracting / 解壓縮中...</code>"
+		case msbimport.PREP_STAGE_PROCESSING:
+			if filesTotal := ld.PrepFilesTotal.Load(); filesTotal > 0 {
+				return fmt.Sprintf("<code>Processing files / 處理檔案中...\n       %d of %d</code>", ld.PrepFilesDone.Load(), filesTotal)
+			}
+			return "<code>Processing files / 處理檔案中...</code>"
 		}
 	}
 	return "<code>Preparing import / 準備匯入中...</code>"
