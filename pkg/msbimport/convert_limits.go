@@ -113,6 +113,18 @@ func acquireFFmpegSlot() func() {
 	}
 }
 
+// ImageMagick (pixel cache) and ffmpeg (VP9) are both memory-heavy; serialize them
+// against each other so their peaks never sum past the 256MB VM. Safe to call here
+// because no acquireFFmpegSlot holder ever routes through runImageMagickConvert (the
+// webp pipe path execs ImageMagick directly).
+func acquireImageMagickSlot() func() {
+	initHeavyConverterSemaphore()
+	heavyConverterSemaphore <- struct{}{}
+	return func() {
+		<-heavyConverterSemaphore
+	}
+}
+
 func imageMagickResourceArgs() []string {
 	memoryLimit := os.Getenv("MSB_IM_MEMORY_LIMIT")
 	if memoryLimit == "" {
@@ -180,6 +192,9 @@ func runImageMagickConvert(ctx context.Context, timeout time.Duration, lowMemory
 		runCtx, cancel = context.WithTimeout(ctx, timeout)
 	}
 	defer cancel()
+
+	releaseSlot := acquireImageMagickSlot()
+	defer releaseSlot()
 
 	out, err := exec.CommandContext(runCtx, CONVERT_BIN, imageMagickConvertArgs(lowMemory, args...)...).CombinedOutput()
 	if err != nil && runCtx.Err() != nil {
