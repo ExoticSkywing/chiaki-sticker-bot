@@ -355,6 +355,30 @@ func telegramStickerRetryDelay(attempt int) time.Duration {
 	return time.Duration(5+attempt*10) * time.Second
 }
 
+// sendDocumentWithRetry uploads a document, retrying on transient Telegram
+// timeouts/5xx. Large whole-pack zips upload slowly from the constrained VM, so a
+// single timed-out attempt should not fail the whole download.
+func sendDocumentWithRetry(c tele.Context, doc *tele.Document) error {
+	var lastErr error
+	for i := 0; i < telegramStickerAPIAttempts; i++ {
+		_, err := c.Bot().Send(c.Recipient(), doc)
+		if err == nil {
+			return nil
+		}
+		lastErr = err
+		if !isRetryableTelegramWriteError(err) {
+			return err
+		}
+		if i == telegramStickerAPIAttempts-1 {
+			break
+		}
+		sleepTime := telegramStickerRetryDelay(i)
+		log.Warnf("sendDocumentWithRetry: retryable Telegram error, sleeping %s (attempt %d/%d): %s", sleepTime, i+1, telegramStickerAPIAttempts, sanitizeErrorText(err))
+		time.Sleep(sleepTime)
+	}
+	return fmt.Errorf("sendDocumentWithRetry: exceeded retry limit: %w", lastErr)
+}
+
 func sleepWithContext(ctx context.Context, d time.Duration) error {
 	if ctx == nil {
 		time.Sleep(d)

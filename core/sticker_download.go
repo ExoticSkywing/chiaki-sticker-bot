@@ -118,7 +118,7 @@ func downloadStickersAndSend(s *tele.Sticker, setID string, c tele.Context) erro
 	zipPaths = append(zipPaths, msbimport.FCompressVol(convertedZipPath, cflist)...)
 
 	for _, zipPath := range zipPaths {
-		_, err := c.Bot().Send(c.Recipient(), &tele.Document{FileName: filepath.Base(zipPath), File: tele.FromDisk(zipPath)})
+		err := sendDocumentWithRetry(c, &tele.Document{FileName: filepath.Base(zipPath), File: tele.FromDisk(zipPath)})
 		time.Sleep(1 * time.Second)
 		if err != nil {
 			return err
@@ -177,7 +177,7 @@ func downloadLineSToZip(c tele.Context, ud *UserData) error {
 		files = append(files, lf.OriginalFile)
 	}
 	msbimport.FCompress(zipPath, files)
-	_, err = c.Bot().Send(c.Recipient(), &tele.Document{FileName: zipName, File: tele.FromDisk(zipPath)})
+	err = sendDocumentWithRetry(c, &tele.Document{FileName: zipName, File: tele.FromDisk(zipPath)})
 	endSession(c)
 	return err
 }

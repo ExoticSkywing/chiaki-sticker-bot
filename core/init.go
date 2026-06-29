@@ -276,8 +276,10 @@ func initBot(conf ConfigTemplate) *tele.Bot {
 	pref := tele.Settings{
 		Token:  conf.BotToken,
 		Poller: poller,
-		// Use a longer timeout for file uploads (sticker sets can be large).
-		Client:      &http.Client{Timeout: 3 * time.Minute},
+		// Use a longer timeout for file uploads. Whole-pack zip downloads can be
+		// tens of MB and upload slowly from the constrained VM; 3min was too tight
+		// and surfaced as "sendDocument: context deadline exceeded".
+		Client:      &http.Client{Timeout: 10 * time.Minute},
 		Synchronous: false,
 		// Genrally, issues are tackled inside each state, only fatal error should be returned to framework.
 		// onError will terminate current session and log to terminal.
