@@ -40,8 +40,15 @@ const telegramVideoSafeDurationArg = "00:00:02.800"
 // target binary (same PID), so CommandContext timeouts still reach ffmpeg.
 const niceLevel = "19"
 
+// ImageMagick pixel-cache limits. `memory` is the in-RAM ceiling; past it the
+// cache spills to a memory-mapped file (`map`), then to disk. Coalescing a Kakao
+// animated WebP holds every frame at source resolution (~1MB/frame at 512px), so
+// a low memory limit forces slow mmap/disk spill on the hot path. Observed peak
+// RSS on the 256MB VM sits around 164MB, leaving headroom to keep more of that
+// cache resident. The OOM values are the fallback used only after a kill, so
+// they stay small. All overridable via MSB_IM_* env vars.
 const (
-	defaultImageMagickMemoryLimit    = "64MiB"
+	defaultImageMagickMemoryLimit    = "104MiB"
 	defaultImageMagickMapLimit       = "128MiB"
 	defaultImageMagickOOMMemoryLimit = "32MiB"
 	defaultImageMagickOOMMapLimit    = "64MiB"
