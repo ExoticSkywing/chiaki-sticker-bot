@@ -24,6 +24,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     imagemagick \
     libarchive-tools \
     ffmpeg \
+    cpulimit \
     curl \
     gifsicle \
     python3 \

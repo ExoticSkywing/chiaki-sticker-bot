@@ -1,6 +1,7 @@
 package msbimport
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -70,6 +71,52 @@ func niceCommand(bin string, args ...string) *exec.Cmd {
 
 func niceCommandContext(ctx context.Context, bin string, args ...string) *exec.Cmd {
 	return exec.CommandContext(ctx, "nice", append([]string{"-n", niceLevel, bin}, args...)...)
+}
+
+// cpuLimitPercent is the per-core CPU cap for heavy encoders, expressed as a
+// percentage of a single core (100 = one full core). 0 disables capping.
+// On fly's shared-cpu VM, `nice` alone can't keep the webhook/health handler
+// responsive because the whole VM gets throttled at the platform level once it
+// exceeds its baseline; capping the encoder keeps total usage under that ceiling.
+func cpuLimitPercent() int {
+	if v, err := strconv.Atoi(os.Getenv("MSB_CPU_LIMIT")); err == nil && v > 0 {
+		return v
+	}
+	return 0
+}
+
+// attachCPULimit throttles an already-started heavy process to cpuLimitPercent()
+// of a single core via cpulimit(1). It attaches by PID and self-exits when the
+// target dies (-z), so it never orphans and needs no explicit teardown. No-op
+// when disabled or when cpulimit isn't installed.
+func attachCPULimit(pid int) {
+	limit := cpuLimitPercent()
+	if limit <= 0 || pid <= 0 {
+		return
+	}
+	cl := exec.Command("cpulimit", "-p", strconv.Itoa(pid), "-l", strconv.Itoa(limit), "-z")
+	if err := cl.Start(); err != nil {
+		log.Warnln("attachCPULimit: failed to start cpulimit:", err)
+		return
+	}
+	go cl.Wait() // reap the self-exiting cpulimit process
+}
+
+// niceLimitedCombinedOutput runs bin under nice (and cpulimit if configured) and
+// returns combined stdout+stderr. ctx cancellation still reaches the target:
+// `nice` exec-replaces itself with bin (same PID), so the CommandContext SIGKILL
+// hits the encoder directly, and cpulimit self-exits once that PID is gone.
+func niceLimitedCombinedOutput(ctx context.Context, bin string, args ...string) ([]byte, error) {
+	cmd := niceCommandContext(ctx, bin, args...)
+	var buf bytes.Buffer
+	cmd.Stdout = &buf
+	cmd.Stderr = &buf
+	if err := cmd.Start(); err != nil {
+		return buf.Bytes(), err
+	}
+	attachCPULimit(cmd.Process.Pid)
+	err := cmd.Wait()
+	return buf.Bytes(), err
 }
 
 func commandOutputWithTimeout(bin string, args ...string) ([]byte, error) {

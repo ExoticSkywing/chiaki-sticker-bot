@@ -234,6 +234,7 @@ func webpToWebmViaPipeOnceWithMaxDurationAttempt(ctx context.Context, f string, 
 		imCmd.Process.Kill()
 		return fmt.Errorf("webpToWebmViaPipeOnce: ffCmd start: %w", err)
 	}
+	attachCPULimit(ffCmd.Process.Pid)
 
 	imErr := imCmd.Wait()
 	pw.Close()
@@ -439,7 +440,7 @@ func encodeWebmFramesTwoPass(ctx context.Context, framePattern string, pathOut s
 	pass1Args := append([]string{}, baseArgs...)
 	pass1Args = append(pass1Args, "-pass", "1", "-passlogfile", passlog, "-f", "webm", "-y", os.DevNull)
 	runCtx, cancel := context.WithTimeout(ctx, ffmpegTimeout)
-	out, err := niceCommandContext(runCtx, FFMPEG_BIN, pass1Args...).CombinedOutput()
+	out, err := niceLimitedCombinedOutput(runCtx, FFMPEG_BIN, pass1Args...)
 	runErr := runCtx.Err()
 	cancel()
 	if err != nil {
@@ -452,7 +453,7 @@ func encodeWebmFramesTwoPass(ctx context.Context, framePattern string, pathOut s
 	pass2Args := append([]string{}, baseArgs...)
 	pass2Args = append(pass2Args, "-pass", "2", "-passlogfile", passlog, "-y", pathOut)
 	runCtx, cancel = context.WithTimeout(ctx, ffmpegTimeout)
-	out, err = niceCommandContext(runCtx, FFMPEG_BIN, pass2Args...).CombinedOutput()
+	out, err = niceLimitedCombinedOutput(runCtx, FFMPEG_BIN, pass2Args...)
 	runErr = runCtx.Err()
 	cancel()
 	if err != nil {

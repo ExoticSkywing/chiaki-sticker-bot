@@ -92,7 +92,7 @@ func FFToWebmTGVideoContextWithStatus(ctx context.Context, f string, isCustomEmo
 			args = append(args, []string{"-to", duration, "-an", "-y", pathOut}...)
 			runCtx, cancel := context.WithTimeout(ctx, ffmpegTimeout)
 			releaseFFmpeg := acquireFFmpegSlot()
-			out, err := niceCommandContext(runCtx, bin, args...).CombinedOutput()
+			out, err := niceLimitedCombinedOutput(runCtx, bin, args...)
 			releaseFFmpeg()
 			runErr := runCtx.Err()
 			cancel()
@@ -174,7 +174,7 @@ func FFToWebmSafeContext(ctx context.Context, f string, isCustomEmoji bool) (str
 	runCtx, cancel := context.WithTimeout(ctx, ffmpegTimeout)
 	defer cancel()
 	releaseFFmpeg := acquireFFmpegSlot()
-	out, err := niceCommandContext(runCtx, bin, args...).CombinedOutput()
+	out, err := niceLimitedCombinedOutput(runCtx, bin, args...)
 	releaseFFmpeg()
 	if err != nil {
 		if ctx.Err() != nil {
@@ -249,7 +249,7 @@ func ffToGifWithProfile(decoder []string, f string, pathOut string, palettePath 
 
 	ctx1, cancel1 := context.WithTimeout(context.Background(), timeout)
 	releaseFFmpeg := acquireFFmpegSlot()
-	out, err := niceCommandContext(ctx1, bin, args1...).CombinedOutput()
+	out, err := niceLimitedCombinedOutput(ctx1, bin, args1...)
 	releaseFFmpeg()
 	runErr := ctx1.Err()
 	cancel1()
@@ -271,7 +271,7 @@ func ffToGifWithProfile(decoder []string, f string, pathOut string, palettePath 
 
 	ctx2, cancel2 := context.WithTimeout(context.Background(), timeout)
 	releaseFFmpeg = acquireFFmpegSlot()
-	out, err = niceCommandContext(ctx2, bin, args2...).CombinedOutput()
+	out, err = niceLimitedCombinedOutput(ctx2, bin, args2...)
 	releaseFFmpeg()
 	runErr = ctx2.Err()
 	cancel2()
@@ -334,7 +334,7 @@ func FFToAnimatedWebpWA(f string) error {
 
 		runCtx, cancel := context.WithTimeout(context.Background(), ffmpegTimeout)
 		releaseFFmpeg := acquireFFmpegSlot()
-		out, err := niceCommandContext(runCtx, bin, args...).CombinedOutput()
+		out, err := niceLimitedCombinedOutput(runCtx, bin, args...)
 		releaseFFmpeg()
 		cancel()
 		if err != nil {

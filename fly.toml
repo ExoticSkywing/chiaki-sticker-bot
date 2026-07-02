@@ -13,6 +13,11 @@ primary_region = 'sin'
   # the ~93MB VP9 ffmpeg subprocess + nginx within the 256MB VM (avoids OOM kills).
   GOMEMLIMIT = "128MiB"
   MSB_KAKAO_FAST_PIPE = "1"
+  # Cap each heavy encoder (ffmpeg) at this % of one core via cpulimit, leaving
+  # headroom so the webhook/health handler stays responsive during conversions.
+  # `nice` alone can't prevent fly's platform-level throttling of the whole VM.
+  # Lower this if replies still lag; raise it for faster (but greedier) encodes.
+  MSB_CPU_LIMIT = "70"
   MSB_IM_MEMORY_LIMIT = "32MiB"
   MSB_IM_MAP_LIMIT = "64MiB"
   MSB_IM_OOM_MEMORY_LIMIT = "24MiB"
