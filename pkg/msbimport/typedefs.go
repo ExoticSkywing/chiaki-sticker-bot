@@ -128,9 +128,10 @@ type LineData struct {
 
 // Preparation stages reported via LineData.PrepStage for the import progress UI.
 const (
-	PREP_STAGE_NONE       int32 = iota
-	PREP_STAGE_EXTRACTING       // unpacking the downloaded zip
-	PREP_STAGE_PROCESSING       // per-file post-processing (e.g. APNG fixup)
+	PREP_STAGE_NONE        int32 = iota
+	PREP_STAGE_EXTRACTING        // unpacking the downloaded zip
+	PREP_STAGE_PROCESSING        // per-file post-processing (e.g. APNG fixup)
+	PREP_STAGE_DOWNLOADING       // downloading stickers one by one (no single archive)
 )
 
 type LineJson struct {

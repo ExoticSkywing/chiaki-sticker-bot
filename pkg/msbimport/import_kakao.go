@@ -110,6 +110,14 @@ func prepareKakaoStickers(ctx context.Context, ld *LineData, workDir string, nee
 		ld.Files = append(ld.Files, lf)
 	}
 
+	// Report per-file progress: this path downloads+converts each sticker one by
+	// one, so surface the current file index and whether it's downloading or
+	// converting instead of a static "Preparing". PrepFilesDone tracks the file
+	// currently being worked on (1-based).
+	ld.PrepFilesDone.Store(0)
+	ld.PrepFilesTotal.Store(int64(len(ld.DLinks)))
+	ld.PrepStage.Store(PREP_STAGE_DOWNLOADING)
+
 	//Download stickers one by one.
 	go func() {
 		for i, l := range ld.DLinks {
@@ -124,6 +132,9 @@ func prepareKakaoStickers(ctx context.Context, ld *LineData, workDir string, nee
 				return
 			default:
 			}
+
+			ld.PrepFilesDone.Store(int64(i + 1))
+			ld.PrepStage.Store(PREP_STAGE_DOWNLOADING)
 
 			isAnimated := strings.HasSuffix(l, "-g")
 			// Save without extension so format is auto-detected from content.
@@ -141,6 +152,7 @@ func prepareKakaoStickers(ctx context.Context, ld *LineData, workDir string, nee
 			}
 			cf := f
 			if needConvert {
+				ld.PrepStage.Store(PREP_STAGE_PROCESSING)
 				if isAnimated {
 					cf, err = KakaoAnimatedWebpToWebmContext(ctx, f, ld.Files[i].Status)
 				} else {
