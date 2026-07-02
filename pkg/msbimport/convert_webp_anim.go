@@ -43,6 +43,20 @@ var kakaoWebmRateControls = []webmRateControl{
 	{bitrate: "90k", maxrate: "135k"},
 }
 
+// webmTargetBytes is the size we aim for when picking a starting bitrate. It
+// sits a little under Telegram's 255KiB hard limit to leave headroom for the
+// encoder overshooting its -b:v target.
+const webmTargetBytes = 250 * KiB
+
+// webmBitrateOvershoot is the ratio we assume between the VP9 -b:v target and
+// the actual average bitrate of the produced file when picking a starting
+// bitrate. maxrate is set to ~1.5x the target, so 1.5 is the worst case: a clip
+// that sustains its peak the whole way. Estimating against that worst case makes
+// the first encode fit on the first try nearly always, trading a little quality
+// on demanding clips for far fewer re-encodes (each one is expensive and, on the
+// production VM, prone to timing out).
+const webmBitrateOvershoot = 1.50
+
 var webmDurationFallbacks = []string{
 	telegramVideoMaxDurationArg,
 	telegramVideoSafeDurationArg,
@@ -110,8 +124,16 @@ func webpToWebmViaPipeFastWithMaxDurationContext(ctx context.Context, f string, 
 	pathOut := f + ".webm"
 	status.Clear()
 
-	fps := webpFPS(f)
-	log.Debugf("webpToWebmViaPipeFast: %s fps=%.2f", f, fps)
+	fps := 25.0
+	sourceDurationSec := 0.0
+	if delays, ok := webpDelayTicks(f); ok {
+		fps = averageFPSFromDelayTicks(delays)
+		for _, d := range delays {
+			sourceDurationSec += d
+		}
+		sourceDurationSec /= 100.0
+	}
+	log.Debugf("webpToWebmViaPipeFast: %s fps=%.2f dur=%.2fs", f, fps, sourceDurationSec)
 
 	scale := "512:512:force_original_aspect_ratio=decrease"
 	if isCustomEmoji {
@@ -120,7 +142,8 @@ func webpToWebmViaPipeFastWithMaxDurationContext(ctx context.Context, f string, 
 
 	var lastErr error
 	for _, duration := range webmDurationAttempts(maxDuration) {
-		for i := 0; i < len(kakaoWebmRateControls); {
+		effDur := effectiveEncodeDuration(sourceDurationSec, duration)
+		for i := estimatedWebmRateControlStartIndex(kakaoWebmRateControls, effDur); i < len(kakaoWebmRateControls); {
 			rc := kakaoWebmRateControls[i]
 			if err := ctx.Err(); err != nil {
 				return pathOut, err
@@ -313,14 +336,19 @@ func webpToWebmViaFramesTwoPassWithMaxDurationContext(ctx context.Context, f str
 		return pathOut, errors.New("webpToWebmViaFramesTwoPass: no frames produced")
 	}
 	timing := webpTimingForFrames(f, len(frames))
-	timedFramePattern, _, err := materializeTimedFrameSequence(frameDir, frames, timing.durations, timing.outputFPS)
+	timedFramePattern, timedFrameCount, err := materializeTimedFrameSequence(frameDir, frames, timing.durations, timing.outputFPS)
 	if err != nil {
 		return pathOut, err
+	}
+	encodeDurationSec := 0.0
+	if timing.outputFPS > 0 {
+		encodeDurationSec = float64(timedFrameCount) / timing.outputFPS
 	}
 
 	var lastErr error
 	for _, duration := range webmDurationAttempts(maxDuration) {
-		for i := 0; i < len(kakaoWebmRateControls); {
+		effDur := effectiveEncodeDuration(encodeDurationSec, duration)
+		for i := estimatedWebmRateControlStartIndex(kakaoWebmRateControls, effDur); i < len(kakaoWebmRateControls); {
 			rc := kakaoWebmRateControls[i]
 			if err := ctx.Err(); err != nil {
 				return pathOut, err
@@ -371,6 +399,69 @@ func webpToWebmViaFramesTwoPassWithMaxDurationContext(ctx context.Context, f str
 
 func stickerTooLargeStatus() string {
 	return "too large for Telegram. Compressing..."
+}
+
+// estimatedWebmRateControlStartIndex returns the index of the highest-quality
+// (highest-bitrate) rate control whose expected output still fits under
+// Telegram's size limit for an encode of the given duration. Starting the
+// bitrate ladder here avoids an almost-certainly-oversized first encode (and
+// its retry) for typical multi-second Kakao stickers, while still starting at
+// full quality for short clips that can afford it. Returns 0 when the duration
+// is unknown so callers fall back to the previous "start at the top" behaviour.
+func estimatedWebmRateControlStartIndex(rateControls []webmRateControl, durationSec float64) int {
+	if durationSec <= 0 {
+		return 0
+	}
+	maxKbps := float64(webmTargetBytes) * 8 / durationSec / 1000 / webmBitrateOvershoot
+	for i, rc := range rateControls {
+		kbps, ok := parseKBitrate(rc.bitrate)
+		if !ok {
+			continue
+		}
+		if float64(kbps) <= maxKbps {
+			return i
+		}
+	}
+	if len(rateControls) == 0 {
+		return 0
+	}
+	return len(rateControls) - 1
+}
+
+// maxDurationArgSeconds parses an ffmpeg "-to" argument such as "00:00:02.400"
+// into seconds. Returns 0 when the value can't be parsed.
+func maxDurationArgSeconds(arg string) float64 {
+	arg = strings.TrimSpace(arg)
+	if arg == "" {
+		return 0
+	}
+	parts := strings.Split(arg, ":")
+	total := 0.0
+	for _, p := range parts {
+		v, err := strconv.ParseFloat(p, 64)
+		if err != nil {
+			return 0
+		}
+		total = total*60 + v
+	}
+	if total < 0 {
+		return 0
+	}
+	return total
+}
+
+// effectiveEncodeDuration is the actual length of the encoded clip: the source
+// duration, capped by the current "-to" attempt. Used to size the starting
+// bitrate for that attempt.
+func effectiveEncodeDuration(sourceDurationSec float64, maxDurationArg string) float64 {
+	capSec := maxDurationArgSeconds(maxDurationArg)
+	if sourceDurationSec <= 0 {
+		return capSec
+	}
+	if capSec > 0 && capSec < sourceDurationSec {
+		return capSec
+	}
+	return sourceDurationSec
 }
 
 func nextWebmRateControlIndexAfterOversize(rateControls []webmRateControl, currentIndex int, outputSize int64) int {

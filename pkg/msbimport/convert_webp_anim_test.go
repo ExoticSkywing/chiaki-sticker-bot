@@ -182,6 +182,70 @@ func TestNextWebmRateControlIndexAfterOversizeSkipsClearlyTooHighBitrates(t *tes
 	}
 }
 
+func TestEstimatedWebmRateControlStartIndex(t *testing.T) {
+	tests := []struct {
+		name        string
+		durationSec float64
+		wantBitrate string
+	}{
+		// Unknown duration must fall back to the top of the ladder so behaviour
+		// is unchanged when we can't measure the source.
+		{name: "unknown duration starts at top", durationSec: 0, wantBitrate: "610k"},
+		// A full 3s sticker cannot fit at 610k (observed 288-316KiB), so we must
+		// start well below it rather than waste the heaviest encode. At the
+		// worst-case 1.5x overshoot this lands at 440k.
+		{name: "3s starts below 610k", durationSec: 3.0, wantBitrate: "440k"},
+		// Short clips can afford full quality on the first try.
+		{name: "1s affords top bitrate", durationSec: 1.0, wantBitrate: "610k"},
+		{name: "2s affords top bitrate", durationSec: 2.0, wantBitrate: "610k"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			i := estimatedWebmRateControlStartIndex(kakaoWebmRateControls, tt.durationSec)
+			if got := kakaoWebmRateControls[i].bitrate; got != tt.wantBitrate {
+				t.Fatalf("start index %d = %s, want %s", i, got, tt.wantBitrate)
+			}
+		})
+	}
+}
+
+// TestEstimatedStartIndexFitsObservedOutput guards the core promise: for the
+// real 3s stickers that overshot at 610k in production, the estimated starting
+// bitrate would have produced a file within Telegram's limit on the first try.
+func TestEstimatedStartIndexFitsObservedOutput(t *testing.T) {
+	const observed610kBytes = 316802 // largest oversize seen at 610k over 3s
+	observedKbps, _ := parseKBitrate("610k")
+	i := estimatedWebmRateControlStartIndex(kakaoWebmRateControls, 3.0)
+	startKbps, _ := parseKBitrate(kakaoWebmRateControls[i].bitrate)
+
+	// Scale the observed size down by the bitrate ratio (size ∝ bitrate at a
+	// fixed duration) and confirm it clears the 255KiB limit.
+	predicted := float64(observed610kBytes) * float64(startKbps) / float64(observedKbps)
+	if predicted > 255*KiB {
+		t.Fatalf("predicted %.0f bytes at %s exceeds 255KiB", predicted, kakaoWebmRateControls[i].bitrate)
+	}
+}
+
+func TestMaxDurationArgSeconds(t *testing.T) {
+	tests := []struct {
+		arg  string
+		want float64
+	}{
+		{"00:00:03", 3},
+		{"00:00:02.400", 2.4},
+		{"00:01:00", 60},
+		{"01:00:00", 3600},
+		{"", 0},
+		{"bogus", 0},
+	}
+	for _, tt := range tests {
+		if got := maxDurationArgSeconds(tt.arg); got != tt.want {
+			t.Fatalf("maxDurationArgSeconds(%q) = %v, want %v", tt.arg, got, tt.want)
+		}
+	}
+}
+
 func TestKakaoAnimatedWebpToWebmPreservesVariableDelayDuration(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping ffmpeg/ImageMagick integration test in short mode")
