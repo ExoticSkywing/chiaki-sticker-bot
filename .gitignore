@@ -8,3 +8,4 @@ __debug*
 .DS_Store
 deploy.yaml
 tmp/
+loop-phase-delivery

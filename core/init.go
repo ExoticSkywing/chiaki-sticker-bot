@@ -26,6 +26,7 @@ func Init(conf ConfigTemplate) {
 	initLogrus()
 	msbimport.InitConvert()
 	b = initBot(conf)
+	initBotCommands(b)
 
 	// Start HTTP server immediately so fly.io health checks pass
 	// while DB and other slow init (TiDB wakeup) happen in the background.
@@ -293,6 +294,22 @@ func initBot(conf ConfigTemplate) *tele.Bot {
 	return b
 }
 
+func initBotCommands(b *tele.Bot) {
+	commands := []tele.Command{
+		{Text: "start", Description: "Start the bot"},
+		{Text: "import", Description: "Import LINE/Kakao stickers"},
+		{Text: "download", Description: "Download stickers or GIFs"},
+		{Text: "create", Description: "Create a sticker set"},
+		{Text: "manage", Description: "Manage sticker sets"},
+		{Text: "search", Description: "Search sticker sets"},
+		{Text: "help", Description: "Show help"},
+		{Text: "about", Description: "About this bot"},
+	}
+	if err := b.SetCommands(commands); err != nil {
+		log.Warnln("Failed to set bot commands:", err)
+	}
+}
+
 func initWorkspace(b *tele.Bot) {
 	botName = b.Me.Username
 	if msbconf.DataDir != "" {
@@ -307,7 +324,10 @@ func initWorkspace(b *tele.Bot) {
 	}
 
 	if msbconf.DbAddr != "" {
-		dbName := botName + "_db"
+		dbName := os.Getenv("DB_NAME")
+		if dbName == "" {
+			dbName = botName + "_db"
+		}
 		err = initDB(dbName)
 		if err != nil {
 			log.Fatalln("Error initializing database!!", err)

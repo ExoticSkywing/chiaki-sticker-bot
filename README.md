@@ -24,7 +24,25 @@ A self-hosted Telegram sticker bot, forked from [@moe_sticker_bot](https://githu
 
 ---
 
-## Deployment on fly.io
+## Recommended deployment: Docker Compose + 宝塔面板
+
+For the current self-hosted server deployment, use Docker Compose with BT/宝塔 handling HTTPS and reverse proxy.
+
+- Full WebApp support is enabled through `WEBAPP_URL=https://your-domain/webapp`.
+- Telegram webhook is served at `WEBHOOK_URL=https://your-domain/webhook`.
+- The container uses host networking and listens on `127.0.0.1:18080`.
+- BT/宝塔 should reverse proxy `/` to `http://127.0.0.1:18080`.
+- Local MySQL/宝塔 MySQL is supported with `DB_NAME` and `DB_TLS_CONFIG=false`.
+
+Deployment docs:
+
+- [Docker Compose + 宝塔 deployment guide](./DEPLOY_DOCKER_COMPOSE.md)
+- [Current verified deployment status](./DEPLOYMENT_STATUS.md)
+- [Environment template](./.env.example)
+
+---
+
+## Alternative deployment: fly.io
 
 This fork is designed to run on [fly.io](https://fly.io) with 256MB RAM.
 

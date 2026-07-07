@@ -72,13 +72,20 @@ func initDB(dbname string) error {
 	pass := msbconf.DbPass
 	params := make(map[string]string)
 	params["autocommit"] = "1"
+	tlsConfig := os.Getenv("DB_TLS_CONFIG")
+	if tlsConfig == "" {
+		tlsConfig = "true"
+	}
+	if strings.EqualFold(tlsConfig, "false") || tlsConfig == "0" || strings.EqualFold(tlsConfig, "disable") {
+		tlsConfig = ""
+	}
 	dsn := &mysql.Config{
 		User:                 user,
 		Passwd:               pass,
 		Net:                  "tcp",
 		Addr:                 addr,
 		AllowNativePasswords: true,
-		TLSConfig:            "true",
+		TLSConfig:            tlsConfig,
 		Params:               params,
 	}
 	db, _ = sql.Open("mysql", dsn.FormatDSN())

@@ -1,0 +1,34 @@
+services:
+  chiaki-sticker-bot:
+    build: .
+    image: chiaki-sticker-bot:local
+    container_name: chiaki-sticker-bot
+    restart: unless-stopped
+    env_file:
+      - .env
+    network_mode: host
+    volumes:
+      - ./data:/data
+    environment:
+      DATA_DIR: /data
+      WEBAPP_DATA_DIR: /data/webapp
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+
+      # Tuned for this server: 2 vCPU / ~11 GiB RAM.
+      GOMEMLIMIT: ${GOMEMLIMIT:-6GiB}
+      MSB_IMPORT_CONCURRENCY: ${MSB_IMPORT_CONCURRENCY:-3}
+      MSB_FFMPEG_CONCURRENCY: ${MSB_FFMPEG_CONCURRENCY:-2}
+      MSB_WEBM_WORKER_CONCURRENCY: ${MSB_WEBM_WORKER_CONCURRENCY:-2}
+      MSB_IM_MEMORY_LIMIT: ${MSB_IM_MEMORY_LIMIT:-1GiB}
+      MSB_IM_MAP_LIMIT: ${MSB_IM_MAP_LIMIT:-2GiB}
+      MSB_IM_OOM_MEMORY_LIMIT: ${MSB_IM_OOM_MEMORY_LIMIT:-512MiB}
+      MSB_IM_OOM_MAP_LIMIT: ${MSB_IM_OOM_MAP_LIMIT:-1GiB}
+      MSB_KAKAO_FAST_PIPE: ${MSB_KAKAO_FAST_PIPE:-1}
+      MSB_CONVERT_TIMEOUT_SECONDS: ${MSB_CONVERT_TIMEOUT_SECONDS:-240}
+      MSB_IMPORT_QUEUE_TIMEOUT_SECONDS: ${MSB_IMPORT_QUEUE_TIMEOUT_SECONDS:-1800}
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:18080/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
