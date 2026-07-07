@@ -4,6 +4,7 @@
 .gocache/
 __debug*
 *_data/
+data/
 
 .DS_Store
 deploy.yaml

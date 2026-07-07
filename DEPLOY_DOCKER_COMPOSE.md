@@ -224,6 +224,12 @@ MSB_IM_OOM_MAP_LIMIT=1GiB
 MSB_KAKAO_FAST_PIPE=1
 MSB_CONVERT_TIMEOUT_SECONDS=240
 MSB_IMPORT_QUEUE_TIMEOUT_SECONDS=1800
+MSB_TGS_GIF_BACKEND=auto
+MSB_TGS_GIF_WIDTH=512
+MSB_TGS_GIF_HEIGHT=512
+MSB_TGS_GIF_FPS=30
+MSB_TGS_GIF_QUALITY=90
+MSB_TGS_GIF_THREADS=2
 ```
 
 对这台 2 vCPU 服务器，建议先保持这套配置。
@@ -234,7 +240,28 @@ MSB_IMPORT_QUEUE_TIMEOUT_SECONDS=1800
 MSB_IMPORT_CONCURRENCY=4
 ```
 
-不要一开始就把 `MSB_FFMPEG_CONCURRENCY` 拉太高。ffmpeg / ImageMagick 是重 CPU 任务，2 核机器上重转码并发长期超过 `2` 通常会让单个任务变慢。
+不要一开始就把 `MSB_FFMPEG_CONCURRENCY` 拉太高。ffmpeg / ImageMagick / gifski 都是重 CPU 任务，2 核机器上重转码并发长期超过 `2` 通常会让单个任务变慢。
+
+## TGS -> GIF 转换后端
+
+`.tgs` 贴纸下载后转 GIF 时默认使用：
+
+```dotenv
+MSB_TGS_GIF_BACKEND=auto
+```
+
+含义：
+
+- `auto`：优先使用 lottie-converter + gifski；失败时回退到旧的 `rlottie-python` 路径。
+- `lottie-converter`：只使用 lottie-converter + gifski，失败直接报错。
+- `rlottie-python`：只使用旧路径。
+
+当前推荐保持 `auto`。如果 gifski 质量好但速度偏慢，可以先降低：
+
+```dotenv
+MSB_TGS_GIF_FPS=20
+MSB_TGS_GIF_QUALITY=80
+```
 
 ## 常用命令
 

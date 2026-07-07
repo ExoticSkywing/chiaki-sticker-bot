@@ -15,8 +15,8 @@
 
 最近一个已验收阶段：
 
-- Docker Compose + 宝塔 + WebApp 完整部署阶段
-- 交付包：`docs/phase-deliveries/2026-07-03-docker-compose-bt-webapp-deployment.md`
+- TGS 透明 GIF 转换后端阶段
+- 交付包：`docs/phase-deliveries/2026-07-07-tgs-transparent-gif-backend.md`
 
 当前稳定基线：
 
@@ -30,7 +30,8 @@
 - 宿主机 MySQL：`127.0.0.1:3306`；
 - 当前数据库名：`stickerbot`；
 - 本地 MySQL 使用 `DB_TLS_CONFIG=false`；
-- Telegram 命令菜单已注册。
+- Telegram 命令菜单已注册；
+- `.tgs -> gif` 默认使用 `MSB_TGS_GIF_BACKEND=auto`，优先 lottie-converter + gifski，失败回退 rlottie-python。
 
 更完整状态见：`DEPLOYMENT_STATUS.md`。
 
@@ -44,6 +45,7 @@ DEPLOYMENT_STATUS.md              当前已验证部署状态
 docker-compose.yml                当前 Compose 部署定义
 start-bot.sh                      容器启动脚本
 scripts/init-db-schema.sh          数据库 schema 初始化脚本
+third_party/lottie-converter/       TGS 透明 GIF 新后端 vendored 源码
 web/nginx/fly.conf                容器内部 nginx 配置
 docs/HANDOFF.md                   当前接棒入口
 docs/PROTOCOL.md                  阶段性交付包协议
@@ -57,6 +59,7 @@ docs/decisions/                   长期决策，可选
 
 - `2026-07-03-docker-compose-bt-webapp-deployment.md`：完成 Docker Compose + 宝塔 + 本地 MySQL + WebApp 部署，建立当前稳定生产基线。
 - `2026-07-07-db-schema-init-script.md`：新增幂等数据库 schema 初始化脚本，替代部署文档中的手写 SQL。
+- `2026-07-07-tgs-transparent-gif-backend.md`：新增 `.tgs -> gif` 双线路后端，优先 lottie-converter + gifski，解决官方 TGS 转 GIF 黑底问题。
 
 ## 5. 当前待解决问题
 
@@ -65,6 +68,7 @@ docs/decisions/                   长期决策，可选
   - 左下角命令菜单是否刷新出现；
   - `/manage` 打开的 WebApp 是否能正常使用。
 - 数据库 schema 初始化脚本已补充并验收：`scripts/init-db-schema.sh`。
+- TGS 透明 GIF 后端已补充并验收：`MSB_TGS_GIF_BACKEND=auto`。
 - 后续可补充 smoke test 脚本，自动验证 health、webhook info、commands、WebApp 静态资源。
 
 ## 6. 接棒契约

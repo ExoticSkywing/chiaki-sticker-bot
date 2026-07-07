@@ -84,6 +84,23 @@ Registered commands:
 - `/help`
 - `/about`
 
+## TGS transparent GIF backend
+
+`.tgs -> gif` now defaults to a dual-backend strategy:
+
+```dotenv
+MSB_TGS_GIF_BACKEND=auto
+MSB_TGS_GIF_WIDTH=512
+MSB_TGS_GIF_HEIGHT=512
+MSB_TGS_GIF_FPS=30
+MSB_TGS_GIF_QUALITY=90
+MSB_TGS_GIF_THREADS=2
+```
+
+`auto` tries lottie-converter + gifski first, then falls back to the legacy `rlottie-python` path. This has been verified by the user to turn the previously black-background official TGS GIF output into transparent GIF output.
+
+CPU can reach 100% during conversion on the current 2 vCPU server. For smoother bot responsiveness, reduce `MSB_TGS_GIF_THREADS` to `1`; for smoother GIF output, the user may tune FPS/quality in `.env`.
+
 ## Performance tuning
 
 Defaults are tuned for the current 2 vCPU / ~11 GiB RAM server:

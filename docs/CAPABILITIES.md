@@ -7,6 +7,7 @@
 <!-- LPD:CAPABILITIES:START -->
 - Docker Compose + 宝塔完整部署：当前生产基线使用 `network_mode: host`，宝塔反代 `/` 到 `http://127.0.0.1:18080`，WebApp 和 webhook 均已跑通；详情见 `docs/phase-deliveries/2026-07-03-docker-compose-bt-webapp-deployment.md`。
 - 本地/宝塔 MySQL schema 初始化：可用 `scripts/init-db-schema.sh` 从 `.env` 读取 `DB_ADDR`、`DB_USER`、`DB_NAME`、`DB_PASS` 并幂等初始化所需表和 `DB_VER=7`；详情见 `docs/phase-deliveries/2026-07-07-db-schema-init-script.md`。
+- TGS 透明 GIF 转换：`.tgs -> gif` 默认 `MSB_TGS_GIF_BACKEND=auto`，优先 lottie-converter + gifski，失败回退 rlottie-python，已解决官方 TGS 转 GIF 黑底问题；详情见 `docs/phase-deliveries/2026-07-07-tgs-transparent-gif-backend.md`。
 <!-- LPD:CAPABILITIES:END -->
 
 ## 待验证能力
