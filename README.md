@@ -1,9 +1,4 @@
-# [@chiaki_sticker_bot](https://t.me/chiaki_sticker_bot)
-
-A self-hosted Telegram sticker bot, forked from [@moe_sticker_bot](https://github.com/star-39/moe-sticker-bot) by [star-39](https://github.com/star-39).
-
-> **Why this fork?**
-> The original [@moe_sticker_bot](https://t.me/moe_sticker_bot) has been offline for over 2 years and the upstream repository is no longer maintained. We love what star-39 built, so we're forking it to keep it alive — with a focus on running efficiently on low-RAM, low-cost hosting like [fly.io](https://fly.io).
+# [@moe_sticker_bot](https://t.me/moesticker_bot)
 
 ---
 

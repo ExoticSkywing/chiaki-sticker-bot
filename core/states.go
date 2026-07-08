@@ -278,7 +278,7 @@ func stateProcessing(c tele.Context) error {
 			return cmdQuit(c)
 		}
 	}
-	return c.Send("Processing, please wait... 作業中, 請稍後... /quit")
+	return c.Send("Processing, please wait... 处理中, 请稍后... /quit")
 }
 
 func enterAdminManage(c tele.Context) error {
@@ -391,7 +391,7 @@ func waitSDel(c tele.Context) error {
 		c.Send("error deleting sticker! try another one or /quit")
 		return err
 	}
-	c.Send("Delete OK. 成功刪除一張貼圖。")
+	c.Send("Delete OK. 成功删除一张贴图。")
 	ud.stickerData.cAmount--
 	if ud.stickerData.cAmount == 0 {
 		deleteUserS(ud.stickerData.id)
@@ -463,7 +463,7 @@ func waitSFile(c tele.Context) error {
 	if c.Message().Media() != nil {
 		err := appendMedia(c)
 		if err != nil {
-			c.Reply("Failed processing this file. 處理此檔案時錯誤:\n" + sanitizeErrorText(err))
+			c.Reply("Failed processing this file. 处理此文件时错误:\n" + sanitizeErrorText(err))
 		}
 		return nil
 	} else {
@@ -593,7 +593,7 @@ func waitEmojiChoice(c tele.Context) error {
 	} else {
 		emojis := findEmojis(c.Message().Text)
 		if emojis == "" {
-			return c.Reply("Send emoji or press button a button.\n請傳送emoji或點選按鈕。 /quit")
+			return c.Reply("Send emoji or press button a button.\n请发送 emoji 或点击按钮。 /quit")
 		}
 		ud.stickerData.emojis = []string{emojis}
 	}
@@ -678,7 +678,7 @@ func importPreparationProgressText(ud *UserData) string {
 	// "active N of N" here is internal slot-utilization, not progress — it reads
 	// like a stuck progress bar to users, so the active case shows no counter.
 	if status.Position > 0 {
-		return fmt.Sprintf("<code>Waiting in import queue / 匯入排隊中...\n       position %d of %d</code>", status.Position, status.Waiting)
+		return fmt.Sprintf("<code>Waiting in import queue / 导入排队中...\n       position %d of %d</code>", status.Position, status.Waiting)
 	}
 	// Show the concrete sub-phase so it's clearly not stuck: byte progress while
 	// the zip downloads, then extracting, then per-file processing for animated
@@ -687,30 +687,30 @@ func importPreparationProgressText(ud *UserData) string {
 		total := ld.DLBytesTotal.Load()
 		downloaded := ld.DLBytesDone.Load()
 		if total > 0 && downloaded < total {
-			return fmt.Sprintf("<code>Downloading pack / 下載貼圖包中...\n       %.1f / %.1f MB</code>", float64(downloaded)/1e6, float64(total)/1e6)
+			return fmt.Sprintf("<code>Downloading pack / 下载贴图包中...\n       %.1f / %.1f MB</code>", float64(downloaded)/1e6, float64(total)/1e6)
 		}
 		switch ld.PrepStage.Load() {
 		case msbimport.PREP_STAGE_EXTRACTING:
-			return "<code>Extracting / 解壓縮中...</code>"
+			return "<code>Extracting / 解压中...</code>"
 		case msbimport.PREP_STAGE_DOWNLOADING:
 			if filesTotal := ld.PrepFilesTotal.Load(); filesTotal > 0 {
-				return fmt.Sprintf("<code>Downloading stickers / 下載貼圖中...\n       %d of %d</code>", ld.PrepFilesDone.Load(), filesTotal)
+				return fmt.Sprintf("<code>Downloading stickers / 下载贴图中...\n       %d of %d</code>", ld.PrepFilesDone.Load(), filesTotal)
 			}
-			return "<code>Downloading stickers / 下載貼圖中...</code>"
+			return "<code>Downloading stickers / 下载贴图中...</code>"
 		case msbimport.PREP_STAGE_PROCESSING:
 			if filesTotal := ld.PrepFilesTotal.Load(); filesTotal > 0 {
-				return fmt.Sprintf("<code>Processing files / 處理檔案中...\n       %d of %d</code>", ld.PrepFilesDone.Load(), filesTotal)
+				return fmt.Sprintf("<code>Processing files / 处理文件中...\n       %d of %d</code>", ld.PrepFilesDone.Load(), filesTotal)
 			}
-			return "<code>Processing files / 處理檔案中...</code>"
+			return "<code>Processing files / 处理文件中...</code>"
 		}
 	}
-	return "<code>Preparing import / 準備匯入中...</code>"
+	return "<code>Preparing import / 准备导入中...</code>"
 }
 
 func waitSEmojiAssign(c tele.Context) error {
 	emojiList := findEmojiList(c.Message().Text)
 	if len(emojiList) == 0 {
-		return c.Reply("Please send emoji and keywords(optional).\n請傳送emoji和 關鍵字(可選)。\ntry again or /quit")
+		return c.Reply("Please send emoji and keywords(optional).\n请发送 emoji 和关键字（可选）。\ntry again or /quit")
 	}
 	keywords := stripEmoji(c.Message().Text)
 	keywordList := []string{}

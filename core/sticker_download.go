@@ -105,7 +105,7 @@ func downloadStickersAndSend(s *tele.Sticker, setID string, c tele.Context) erro
 	}
 	if failed > 0 {
 		c.Send(fmt.Sprintf("Note: %d of %d stickers failed to convert and were skipped.\n"+
-			"注意: 有 %d 張貼圖轉檔失敗已略過。", failed, len(ss.Stickers), failed))
+			"注意: 有 %d 张贴图转换失败已跳过。", failed, len(ss.Stickers), failed))
 	}
 	go editProgressMsg(0, 0, "Uploading...", pText, pMsg, c)
 
@@ -130,7 +130,7 @@ func downloadStickersAndSend(s *tele.Sticker, setID string, c tele.Context) erro
 }
 
 func downloadGifToZip(c tele.Context) error {
-	c.Reply("Downloading, please wait...\n正在下載, 請稍等...")
+	c.Reply("Downloading, please wait...\n正在下载, 请稍等...")
 	workDir := filepath.Join(dataDir, secHex(4))
 	os.MkdirAll(workDir, 0755)
 	defer os.RemoveAll(workDir)

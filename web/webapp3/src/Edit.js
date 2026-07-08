@@ -92,7 +92,7 @@ function Edit() {
     return (
       <div className="App"><h3>Please launch WebApp through /manage command.</h3>
         <br />
-        <h3>請使用 /manage 指令後打開WebApp。</h3>
+        <h3>请使用 /manage 指令后打开 WebApp。</h3>
       </div>
     )
   }
@@ -100,7 +100,7 @@ function Edit() {
   return (
     <div>
       <h3>Please hold and drag to reorder</h3>
-      <h3>請按住並拖拽來排序</h3>
+      <h3>请按住并拖拽来排序</h3>
       <DndContext
         sensors={sensors}
         collisionDetection={closestCenter}

@@ -15,8 +15,8 @@
 
 最近一个已验收阶段：
 
-- TGS 透明 GIF 转换后端阶段
-- 交付包：`docs/phase-deliveries/2026-07-07-tgs-transparent-gif-backend.md`
+- 用户交互中文简体化阶段
+- 交付包：`docs/phase-deliveries/2026-07-08-user-facing-simplified-chinese.md`
 
 当前稳定基线：
 
@@ -31,7 +31,8 @@
 - 当前数据库名：`stickerbot`；
 - 本地 MySQL 使用 `DB_TLS_CONFIG=false`；
 - Telegram 命令菜单已注册；
-- `.tgs -> gif` 默认使用 `MSB_TGS_GIF_BACKEND=auto`，优先 lottie-converter + gifski，失败回退 rlottie-python。
+- `.tgs -> gif` 默认使用 `MSB_TGS_GIF_BACKEND=auto`，优先 lottie-converter + gifski，失败回退 rlottie-python；
+- Telegram bot 与 WebApp 面向用户的中文交互文案已切换为简体中文。
 
 更完整状态见：`DEPLOYMENT_STATUS.md`。
 
@@ -60,6 +61,7 @@ docs/decisions/                   长期决策，可选
 - `2026-07-03-docker-compose-bt-webapp-deployment.md`：完成 Docker Compose + 宝塔 + 本地 MySQL + WebApp 部署，建立当前稳定生产基线。
 - `2026-07-07-db-schema-init-script.md`：新增幂等数据库 schema 初始化脚本，替代部署文档中的手写 SQL。
 - `2026-07-07-tgs-transparent-gif-backend.md`：新增 `.tgs -> gif` 双线路后端，优先 lottie-converter + gifski，解决官方 TGS 转 GIF 黑底问题。
+- `2026-07-08-user-facing-simplified-chinese.md`：将 Telegram bot 与 WebApp 用户交互中文文案从繁体切换为简体，保持功能逻辑不变。
 
 ## 5. 当前待解决问题
 
@@ -69,6 +71,7 @@ docs/decisions/                   长期决策，可选
   - `/manage` 打开的 WebApp 是否能正常使用。
 - 数据库 schema 初始化脚本已补充并验收：`scripts/init-db-schema.sh`。
 - TGS 透明 GIF 后端已补充并验收：`MSB_TGS_GIF_BACKEND=auto`。
+- 用户交互中文简体化已补充并验收：`docs/phase-deliveries/2026-07-08-user-facing-simplified-chinese.md`。
 - 后续可补充 smoke test 脚本，自动验证 health、webhook info、commands、WebApp 静态资源。
 
 ## 6. 接棒契约

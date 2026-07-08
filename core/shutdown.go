@@ -11,8 +11,8 @@ import (
 
 const shutdownRetryMessage = "Bot is restarting for a deployment, so your current task was interrupted.\n" +
 	"Please retry with /import after a moment.\n\n" +
-	"機器正在更新重啟，這次轉檔已中斷。\n" +
-	"請稍後重新使用 /import。"
+	"机器正在更新重启，这次转换已中断。\n" +
+	"请稍后重新使用 /import。"
 
 type shutdownSession struct {
 	uid int64

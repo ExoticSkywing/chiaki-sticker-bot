@@ -204,10 +204,10 @@ func onError(err error, c tele.Context) {
 		if c != nil {
 			reason := noStickerAvailableReason(err)
 			c.Send("No sticker was available to import. Please try another sticker link or start again. /start\n"+
-				"沒有可匯入的貼圖，請換一個貼圖連結或點選 /start 重試。\n\n"+
+				"没有可导入的贴图，请换一个贴图链接或点击 /start 重试。\n\n"+
 				"Error: "+reason+"\n"+
 				"If this sticker link should work, please report it here:\n"+
-				"如果你認為這個貼圖連結能正確開啟，請到這裡回報：\n"+
+				"如果你认为这个贴图链接能正确开启，请到这里反馈：\n"+
 				"https://github.com/akira02/chiaki-sticker-bot/issues", tele.NoPreview)
 			cleanUserDataAndDir(c.Sender().ID)
 		}

@@ -31,7 +31,7 @@ function Export() {
     // Hence, we need to put a button inside WebPage and do not
     // generate MainButton.
     if (window.Telegram.WebApp.platform !== "android") {
-      window.Telegram.WebApp.MainButton.setText('Export/匯出').show()
+      window.Telegram.WebApp.MainButton.setText('Export/导出').show()
         .onClick(() => {
           window.open(exportLinkMsb)
         })
@@ -42,12 +42,12 @@ function Export() {
     <div>
       {window.Telegram.WebApp.platform !== "ios" ? (
         <button onClick={() => window.location.replace(exportLinkHttps)}>
-          Export/匯出
+          Export/导出
         </button>) : null
       }
       <br/>
       <h3>
-        Preview 預覽:
+        Preview 预览：
       </h3>
       <StickerGrid columns={4}>
         {
@@ -63,7 +63,7 @@ function Export() {
       <br />
       {window.Telegram.WebApp.platform !== "ios" ? (
         <button onClick={() => window.location.replace(exportLinkHttps)}>
-          Export/匯出
+          Export/导出
         </button>) : null
       }
     </div>

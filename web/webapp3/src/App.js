@@ -30,7 +30,7 @@ function App() {
       <br/>
       <h2>Please launch WebApp using /manage command.</h2>
       <br/>
-      <h2>請通過 /manage 指令打開WebApp.</h2>
+      <h2>请通过 /manage 指令打开 WebApp.</h2>
       </div>);
   } else {
     // initData OK

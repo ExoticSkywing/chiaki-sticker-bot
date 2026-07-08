@@ -160,7 +160,7 @@ func submitStickerSetAuto(createSet bool, c tele.Context) error {
 		insertUserS(c.Sender().ID, ud.stickerData.id, ud.stickerData.title, time.Now().Unix())
 	}
 	editProgressMsg(0, 0, "Success! /start", pText, teleMsg, c)
-	c.Send("If you like this bot, please give us a ⭐️\n如果你喜歡這個 Bot，請幫我們按個 ⭐️\nhttps://github.com/akira02/chiaki-sticker-bot")
+	c.Send("If you like this bot, please give us a ⭐️\n如果你喜欢这个 Bot，请帮我们点个 ⭐️\nhttps://github.com/akira02/chiaki-sticker-bot")
 	sendSFromSS(c, ud.stickerData.id, teleMsg)
 	return nil
 }
@@ -219,7 +219,7 @@ func waitStickerConversionProgress(sf *StickerFile, index int, total int, lastEd
 }
 
 func conversionProgressText(done int, total int, status string) string {
-	prog := "<code>Converting / 轉檔中...\n       " + strconv.Itoa(done) + " of " + strconv.Itoa(total)
+	prog := "<code>Converting / 转换中...\n       " + strconv.Itoa(done) + " of " + strconv.Itoa(total)
 	if status != "" {
 		prog += "\nSticker " + strconv.Itoa(done+1) + " " + status
 	}
@@ -755,7 +755,7 @@ func appendMedia(c tele.Context) error {
 	ctx := ud.ctx
 
 	if ud.stickerData.cAmount+len(ud.stickerData.stickers) > 120 {
-		return errors.New("sticker set already full 此貼圖包已滿")
+		return errors.New("sticker set already full 此贴图包已满")
 	}
 
 	//Incoming media is a sticker.
@@ -878,7 +878,7 @@ func verifyFloodedStickerSet(c tele.Context, fc int, ec int, desiredAmount int, 
 		os.RemoveAll(workdir)
 	} else if desiredAmount > len(ss.Stickers) {
 		log.Warnf("A flooded sticker set missing sticker! floodCount:%d, errorCount:%d, ssn:%s, desired:%d, got:%d", fc, ec, ssn, desiredAmount, len(ss.Stickers))
-		c.Reply("Sorry, this sticker set seems corrupted, please check.\n抱歉, 這個貼圖包似乎有缺失貼圖, 請檢查一下.")
+		c.Reply("Sorry, this sticker set seems corrupted, please check.\n抱歉, 这个贴图包似乎有缺失贴图, 请检查一下.")
 	} else {
 		log.Infof("A flooded sticker set seems ok. floodCount:%d, errorCount:%d, ssn:%s, desired:%d, got:%d", fc, ec, ssn, desiredAmount, len(ss.Stickers))
 	}
