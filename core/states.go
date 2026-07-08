@@ -692,6 +692,11 @@ func importPreparationProgressText(ud *UserData) string {
 		switch ld.PrepStage.Load() {
 		case msbimport.PREP_STAGE_EXTRACTING:
 			return "<code>Extracting / 解壓縮中...</code>"
+		case msbimport.PREP_STAGE_DOWNLOADING:
+			if filesTotal := ld.PrepFilesTotal.Load(); filesTotal > 0 {
+				return fmt.Sprintf("<code>Downloading stickers / 下載貼圖中...\n       %d of %d</code>", ld.PrepFilesDone.Load(), filesTotal)
+			}
+			return "<code>Downloading stickers / 下載貼圖中...</code>"
 		case msbimport.PREP_STAGE_PROCESSING:
 			if filesTotal := ld.PrepFilesTotal.Load(); filesTotal > 0 {
 				return fmt.Sprintf("<code>Processing files / 處理檔案中...\n       %d of %d</code>", ld.PrepFilesDone.Load(), filesTotal)

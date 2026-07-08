@@ -1,6 +1,7 @@
 package core
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -258,6 +259,42 @@ func noStickerAvailableReason(err error) string {
 	return reason
 }
 
+func telegramHTTPClient() *http.Client {
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+
+	return &http.Client{
+		Timeout:   10 * time.Minute,
+		Transport: replayableBodyTransport{next: transport},
+	}
+}
+
+type replayableBodyTransport struct {
+	next http.RoundTripper
+}
+
+func (t replayableBodyTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	if req.Body == nil || req.GetBody != nil {
+		return t.next.RoundTrip(req)
+	}
+
+	body, err := io.ReadAll(req.Body)
+	if err != nil {
+		return nil, err
+	}
+	if err := req.Body.Close(); err != nil {
+		return nil, err
+	}
+
+	clone := req.Clone(req.Context())
+	clone.Body = io.NopCloser(bytes.NewReader(body))
+	clone.GetBody = func() (io.ReadCloser, error) {
+		return io.NopCloser(bytes.NewReader(body)), nil
+	}
+	clone.ContentLength = int64(len(body))
+
+	return t.next.RoundTrip(clone)
+}
+
 func initBot(conf ConfigTemplate) *tele.Bot {
 	var poller tele.Poller
 	if conf.WebhookPublicUrl != "" {
@@ -280,7 +317,7 @@ func initBot(conf ConfigTemplate) *tele.Bot {
 		// Use a longer timeout for file uploads. Whole-pack zip downloads can be
 		// tens of MB and upload slowly from the constrained VM; 3min was too tight
 		// and surfaced as "sendDocument: context deadline exceeded".
-		Client:      &http.Client{Timeout: 10 * time.Minute},
+		Client:      telegramHTTPClient(),
 		Synchronous: false,
 		// Genrally, issues are tackled inside each state, only fatal error should be returned to framework.
 		// onError will terminate current session and log to terminal.
