@@ -15,8 +15,8 @@
 
 最近一个已验收阶段：
 
-- 用户交互中文简体化阶段
-- 交付包：`docs/phase-deliveries/2026-07-08-user-facing-simplified-chinese.md`
+- 合并上游 Custom Emoji 自动拆包修复阶段
+- 交付包：`docs/phase-deliveries/2026-07-13-upstream-custom-emoji-split-merge.md`
 
 当前稳定基线：
 
@@ -33,6 +33,7 @@
 - Telegram 命令菜单已注册；
 - `.tgs -> gif` 默认使用 `MSB_TGS_GIF_BACKEND=auto`，优先 lottie-converter + gifski，失败回退 rlottie-python；
 - Telegram bot 与 WebApp 面向用户的中文交互文案已切换为简体中文。
+- 新建超过 200 个项目的 Custom Emoji 时，会按每包最多 200 个自动拆分并返回全部分包。
 
 更完整状态见：`DEPLOYMENT_STATUS.md`。
 
@@ -62,6 +63,7 @@ docs/decisions/                   长期决策，可选
 - `2026-07-07-db-schema-init-script.md`：新增幂等数据库 schema 初始化脚本，替代部署文档中的手写 SQL。
 - `2026-07-07-tgs-transparent-gif-backend.md`：新增 `.tgs -> gif` 双线路后端，优先 lottie-converter + gifski，解决官方 TGS 转 GIF 黑底问题。
 - `2026-07-08-user-facing-simplified-chinese.md`：将 Telegram bot 与 WebApp 用户交互中文文案从繁体切换为简体，保持功能逻辑不变。
+- `2026-07-13-upstream-custom-emoji-split-merge.md`：合并上游 Custom Emoji 超过 200 个项目时自动拆包的修复，并保留本项目简体中文提示。
 
 ## 5. 当前待解决问题
 
@@ -72,6 +74,7 @@ docs/decisions/                   长期决策，可选
 - 数据库 schema 初始化脚本已补充并验收：`scripts/init-db-schema.sh`。
 - TGS 透明 GIF 后端已补充并验收：`MSB_TGS_GIF_BACKEND=auto`。
 - 用户交互中文简体化已补充并验收：`docs/phase-deliveries/2026-07-08-user-facing-simplified-chinese.md`。
+- Custom Emoji 自动拆包修复已合并并通过全仓库 Go 测试；仍需甲方在真实 Telegram 环境验证超过 200 个项目的导入。
 - 后续可补充 smoke test 脚本，自动验证 health、webhook info、commands、WebApp 静态资源。
 
 ## 6. 接棒契约
@@ -93,6 +96,6 @@ docs/decisions/                   长期决策，可选
 
 1. 想了解当前生产状态：读 `DEPLOYMENT_STATUS.md`；
 2. 想复现部署：读 `DEPLOY_DOCKER_COMPOSE.md`；
-3. 想了解最近交付结果：读 `docs/phase-deliveries/2026-07-03-docker-compose-bt-webapp-deployment.md`；
+3. 想了解最近交付结果：读 `docs/phase-deliveries/2026-07-13-upstream-custom-emoji-split-merge.md`；
 4. 想了解框架契约：读 `docs/PROTOCOL.md`；
 5. 想继续开发：从 `cmd/moe-sticker-bot/main.go`、`core/init.go`、`core/webapp.go`、`pkg/msbimport/` 开始。

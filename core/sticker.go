@@ -19,6 +19,7 @@ import (
 var errNoStickerAvailable = errors.New("no sticker available")
 
 const telegramStickerAPIAttempts = 3
+const maxCustomEmojiPerStickerSet = 200
 
 //TODO: Shrink oversized function.
 
@@ -41,7 +42,6 @@ func submitStickerSetAuto(createSet bool, c tele.Context) error {
 
 	log.Debugln("stickerData summary:")
 	log.Debugln(ud.stickerData)
-	committedStickers := 0
 	errorCount := 0
 	flCount := &ud.stickerData.flCount
 	ssName := ud.stickerData.id
@@ -66,81 +66,20 @@ func submitStickerSetAuto(createSet bool, c tele.Context) error {
 		lastConvProgressEdit = waitStickerConversionProgress(sf, i, convTotal, lastConvProgressEdit, pText, teleMsg, c)
 	}
 
-	//Try batch create.
-	var batchCreateSuccess bool
-	if createSet {
-		err := createStickerSetBatch(ud.ctx, ud.stickerData.stickers, c, ssName, ssTitle, ssType)
-		if err != nil {
-			log.Warnln("sticker.go: Error batch create:", sanitizeErrorText(err))
-			existingCount, exists := existingStickerSetCount(c, ssName)
-			expectedBatchCount := batchCreateExpectedCount(len(ud.stickerData.stickers))
-			if exists && existingCount >= expectedBatchCount {
-				log.Warnln("sticker.go: Batch create failed locally, but sticker set exists; treating batch create as success.")
-				batchCreateSuccess = true
-				committedStickers = expectedBatchCount
-			} else if exists && existingCount > 0 {
-				log.Warnf("sticker.go: Batch create partially created %d/%d stickers; deleting set before fallback.", existingCount, expectedBatchCount)
-				if err := deleteStickerSet(c, ssName); err != nil {
-					return fmt.Errorf("batch create partially created sticker set %s with %d/%d stickers, and cleanup failed: %w", ssName, existingCount, expectedBatchCount, err)
-				}
-			}
-		} else {
-			log.Debugln("sticker.go: Batch create success.")
-			batchCreateSuccess = true
-			committedStickers = batchCreateExpectedCount(len(ud.stickerData.stickers))
+	batches := splitStickerSetBatches(ud.stickerData.stickers, createSet, ssType)
+	createdPacks := make([]stickerSetPack, 0, len(batches))
+	for part, stickers := range batches {
+		name, title := ssName, ssTitle
+		if len(batches) > 1 {
+			name = stickerSetPartName(ssName, part+1)
+			title = stickerSetPartTitle(ssTitle, part+1, len(batches))
 		}
-	}
-
-	//One by one commit.
-	for index, sf := range ud.stickerData.stickers {
-		var err error
-		if err := sessionContextErr(ud); err != nil {
+		errors, err := commitStickerSetAutoBatch(ud, createSet, stickers, part*maxCustomEmojiPerStickerSet, c, name, title, ssType, pText, teleMsg, flCount)
+		if err != nil {
 			return err
 		}
-
-		//Sticker set already finished.
-		if batchCreateSuccess && len(ud.stickerData.stickers) < 51 {
-			go editProgressMsg(len(ud.stickerData.stickers), len(ud.stickerData.stickers), "", pText, teleMsg, c)
-			break
-		}
-		//Sticker set is larger than 50 and batch succeeded.
-		//Skip first 50 stickers.
-		if batchCreateSuccess && len(ud.stickerData.stickers) > 50 {
-			if index < 50 {
-				continue
-			}
-		}
-		//Batch creation failed, run normal creation procedure if createSet is true.
-		if createSet && index == 0 {
-			err = createStickerSet(false, sf, c, ssName, ssTitle, ssType)
-			if err != nil {
-				log.Errorln("create sticker set failed!. ", err)
-				return err
-			} else {
-				committedStickers += 1
-			}
-			continue
-		}
-
-		go editProgressMsg(index, len(ud.stickerData.stickers), "", pText, teleMsg, c)
-
-		err = commitSingleticker(index, flCount, false, sf, c, ud.stickerData, ssName, ssType)
-		if err != nil {
-			log.Warnln("execAutoCommit: a sticker failed to add.", err)
-			sendOneStickerFailedToAdd(c, index, err)
-			errorCount += 1
-		} else {
-			log.Debugln("one sticker commited. count: ", committedStickers)
-			committedStickers += 1
-		}
-		// If encountered flood limit more than once, set a interval.
-		if *flCount == 1 {
-			sleepTime := 10 + rand.Intn(10)
-			time.Sleep(time.Duration(sleepTime) * time.Second)
-		} else if *flCount > 1 {
-			sleepTime := 60 + rand.Intn(10)
-			time.Sleep(time.Duration(sleepTime) * time.Second)
-		}
+		errorCount += errors
+		createdPacks = append(createdPacks, stickerSetPack{name: name, title: title})
 	}
 
 	// Tolerate at most 3 errors when importing sticker set.
@@ -149,20 +88,128 @@ func submitStickerSetAuto(createSet bool, c tele.Context) error {
 	}
 
 	if createSet {
+		for _, pack := range createdPacks {
+			if ud.command == "import" {
+				insertLineS(ud.lineData.Id, ud.lineData.Link, pack.name, pack.title, true)
+			}
+			insertUserS(c.Sender().ID, pack.name, pack.title, time.Now().Unix())
+		}
 		if ud.command == "import" {
-			insertLineS(ud.lineData.Id, ud.lineData.Link, ud.stickerData.id, ud.stickerData.title, true)
 			// Only verify for import.
 			// User generated sticker set might intentionally contain same stickers.
 			if *flCount > 1 {
 				verifyFloodedStickerSet(c, *flCount, errorCount, ud.lineData.Amount, ud.stickerData.id)
 			}
 		}
-		insertUserS(c.Sender().ID, ud.stickerData.id, ud.stickerData.title, time.Now().Unix())
 	}
 	editProgressMsg(0, 0, "Success! /start", pText, teleMsg, c)
 	c.Send("If you like this bot, please give us a ⭐️\n如果你喜欢这个 Bot，请帮我们点个 ⭐️\nhttps://github.com/akira02/chiaki-sticker-bot")
-	sendSFromSS(c, ud.stickerData.id, teleMsg)
+	for _, pack := range createdPacks {
+		sendSFromSS(c, pack.name, teleMsg)
+	}
 	return nil
+}
+
+type stickerSetPack struct {
+	name  string
+	title string
+}
+
+func splitStickerSetBatches(stickers []*StickerFile, createSet bool, ssType string) [][]*StickerFile {
+	if !createSet || ssType != tele.StickerCustomEmoji || len(stickers) <= maxCustomEmojiPerStickerSet {
+		return [][]*StickerFile{stickers}
+	}
+	var batches [][]*StickerFile
+	for len(stickers) > 0 {
+		end := maxCustomEmojiPerStickerSet
+		if end > len(stickers) {
+			end = len(stickers)
+		}
+		batches = append(batches, stickers[:end])
+		stickers = stickers[end:]
+	}
+	return batches
+}
+
+func stickerSetPartName(name string, part int) string {
+	if part == 1 {
+		return name
+	}
+	suffix := "_part" + strconv.Itoa(part)
+	marker := "_by_"
+	index := strings.LastIndex(name, marker)
+	if index == -1 {
+		return name + suffix
+	}
+	prefix, owner := name[:index], name[index:]
+	maxPrefixLength := 64 - len(suffix) - len(owner)
+	if len(prefix) > maxPrefixLength {
+		prefix = prefix[:maxPrefixLength]
+	}
+	return prefix + suffix + owner
+}
+
+func stickerSetPartTitle(title string, part int, total int) string {
+	if total == 1 {
+		return title
+	}
+	suffix := fmt.Sprintf(" (%d/%d)", part, total)
+	maxTitleRunes := 128 - len([]rune(suffix))
+	runes := []rune(title)
+	if len(runes) > maxTitleRunes {
+		runes = runes[:maxTitleRunes]
+	}
+	return string(runes) + suffix
+}
+
+func commitStickerSetAutoBatch(ud *UserData, createSet bool, stickers []*StickerFile, offset int, c tele.Context, ssName string, ssTitle string, ssType string, pText string, teleMsg *tele.Message, flCount *int) (int, error) {
+	batchCreateSuccess := false
+	if createSet {
+		err := createStickerSetBatch(ud.ctx, stickers, c, ssName, ssTitle, ssType)
+		if err != nil {
+			log.Warnln("sticker.go: Error batch create:", sanitizeErrorText(err))
+			existingCount, exists := existingStickerSetCount(c, ssName)
+			expectedBatchCount := batchCreateExpectedCount(len(stickers))
+			if exists && existingCount >= expectedBatchCount {
+				batchCreateSuccess = true
+			} else if exists && existingCount > 0 {
+				if err := deleteStickerSet(c, ssName); err != nil {
+					return 0, fmt.Errorf("batch create partially created sticker set %s with %d/%d stickers, and cleanup failed: %w", ssName, existingCount, expectedBatchCount, err)
+				}
+			}
+		} else {
+			batchCreateSuccess = true
+		}
+	}
+
+	errorCount := 0
+	for index, sf := range stickers {
+		if err := sessionContextErr(ud); err != nil {
+			return errorCount, err
+		}
+		if batchCreateSuccess && index < batchCreateExpectedCount(len(stickers)) {
+			continue
+		}
+		if createSet && index == 0 {
+			if err := createStickerSet(false, sf, c, ssName, ssTitle, ssType); err != nil {
+				return errorCount, err
+			}
+			continue
+		}
+
+		go editProgressMsg(offset+index, len(ud.stickerData.stickers), "", pText, teleMsg, c)
+		if err := commitSingleticker(offset+index, flCount, false, sf, c, ud.stickerData, ssName, ssType); err != nil {
+			log.Warnln("execAutoCommit: a sticker failed to add.", err)
+			sendOneStickerFailedToAdd(c, offset+index, err)
+			errorCount++
+		}
+		if *flCount == 1 {
+			time.Sleep(time.Duration(10+rand.Intn(10)) * time.Second)
+		} else if *flCount > 1 {
+			time.Sleep(time.Duration(60+rand.Intn(10)) * time.Second)
+		}
+	}
+	return errorCount, nil
 }
 
 func sessionContextErr(ud *UserData) error {
