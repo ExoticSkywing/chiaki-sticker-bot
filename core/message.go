@@ -28,7 +28,7 @@ Hi! I'm <b>Chiaki Sticker Bot</b>! Please:
 • 使用 <b>/import</b> 或傳送 <b>LINE/Kakao 貼圖包分享連結</b>來匯入或下載。
 • 傳送 <b>Telegram 貼圖／連結／GIF</b> 來下載。
 • 傳送 <b>/search</b> 來搜尋貼圖包。
-• 使用 <b>/create</b> 或 <b>/manage</b> 來創建或管理貼圖包和表情貼。
+• 使用 <b>/create</b> 或 <b>/manage</b> 來新增或管理貼圖包和表情貼。
 • 傳送 <b>/command_list</b> 檢視所有可用指令。
 `
 	return c.Send(message, tele.ModeHTML, tele.NoPreview)
@@ -39,7 +39,7 @@ func sendCommandList(c tele.Context) error {
 <b>/import</b>  <b>/search</b> LINE/Kakao stickers.<code>
 匯入或搜尋LINE/Kaka貼圖包.</code>
 <b>/download</b>  <b>/create</b>  <b>/manage</b> Telegram stickers.<code>
-下載、創建、管理Telegram貼圖包.</code>
+下載、新增、管理Telegram貼圖包.</code>
 <b>/faq  /about  /changelog  /privacy</b><code>
 常見問題/關於/更新紀錄/隱私</code>
 `
@@ -52,7 +52,7 @@ func sendAboutMessage(c tele.Context) {
 <b>Chiaki Sticker Bot</b>
 A Telegram sticker bot — import LINE/Kakao stickers, create and manage your own sticker sets, and download stickers with ease.
 
-Telegram 貼圖機器人，支援匯入 LINE/Kakao 貼圖、創建與管理貼圖包，以及下載貼圖。
+Telegram 貼圖機器人，支援匯入 LINE/Kakao 貼圖、新增與管理貼圖包，以及下載貼圖。
 
 <a href="https://github.com/akira02/chiaki-sticker-bot">GitHub: akira02/chiaki-sticker-bot</a>
 Forked from the great work of <a href="https://github.com/star-39/moe-sticker-bot">star-39/moe-sticker-bot</a>.
@@ -106,7 +106,7 @@ v2.4.0-RC1-RC4(20240304)
 * Support creating CustomEmoji.
 * Support editing sticker emoji and title.
 * 支援LINE表情貼匯入。
-* 支援創建表情貼。
+* 支援新增表情貼。
 * 支援修改貼圖Emoji/貼圖包標題。
 
 v2.3.13-v2.3.15(20230228)
@@ -438,8 +438,8 @@ func sendAskStickerFile(c tele.Context) error {
 		"or send an archive containing image files,\n" +
 		"wait until upload complete, then tap 'Done adding'.\n\n" +
 		"請傳送任意格式的圖片/影片/貼圖(少於120張)\n" +
-		"或者傳送內有貼圖檔案的歸檔,\n" +
-		"等候所有檔案上載完成, 然後按下「停止增添」\n")
+		"或者傳送內有貼圖檔案的壓縮檔案,\n" +
+		"等候所有檔案上載完成, 然後按下「上傳完成」\n")
 }
 
 func sendInStateWarning(c tele.Context) error {
@@ -467,7 +467,7 @@ func sendAskSTypeToCreate(c tele.Context) error {
 
 	selector.Inline(selector.Row(btnRegular), selector.Row(btnCustomEmoji))
 	return c.Send("What kind of sticker set you want to create?\nNote that custom emoji can only be sent by Telegram Premium member."+
-		"您想要創建何種類型的貼圖包?\n請注意只有Telgram會員可以傳送表情貼。", selector)
+		"您想要新增何種類型的貼圖包?\n請注意只有Telgram會員可以傳送表情貼。", selector)
 }
 
 func sendAskEmojiAssign(c tele.Context) error {
@@ -787,7 +787,7 @@ This warning indicates that you might triggered Telegram's flood limit, and bot 
 Due to this mechanism, resulted sticker set might contains duplicate or missing sticker, please check manually after done.
 
 此貼圖包可能需要更長時間處理(2-8分鐘)...
-看到這一條警告表示Telegram可能限制了您創建貼圖包的頻度, 且bot正在自動嘗試重新製作, 因此得出的貼圖包可能會重複或缺失貼圖, 請在完成製作後再檢查一下.
+看到這一條警告表示Telegram可能限制了您新增貼圖包的頻度, 且bot正在自動嘗試重新製作, 因此得出的貼圖包可能會重複或缺失貼圖, 請在完成製作後再檢查一下.
 `)
 }
 
@@ -822,12 +822,12 @@ func sendBadImportLinkWarn(c tele.Context) error {
 
 func sendNoSToManage(c tele.Context) error {
 	return c.Send("Sorry, you have not created any sticker set yet. You can use /import or /create .\n" +
-		"抱歉, 您還未創建過貼圖包, 您可以使用 /create 或 /import 來創建貼圖包")
+		"抱歉, 您還未新增過貼圖包, 您可以使用 /create 或 /import 來新增貼圖包")
 }
 
 func sendPromptStopAdding(c tele.Context) error {
 	selector := &tele.ReplyMarkup{}
-	btnDone := selector.Data("Done adding/停止添加", CB_DONE_ADDING)
+	btnDone := selector.Data("Done adding/上傳完成", CB_DONE_ADDING)
 	selector.Inline(selector.Row(btnDone))
 	return c.Send("Continue sending files or press button below to stop adding.\n"+
 		"請繼續傳送檔案. 或者按下方按鈕來停止", selector)
@@ -835,11 +835,11 @@ func sendPromptStopAdding(c tele.Context) error {
 
 func replySFileOK(c tele.Context, count int) error {
 	selector := &tele.ReplyMarkup{}
-	btnDone := selector.Data("Done adding/停止添加", CB_DONE_ADDING)
+	btnDone := selector.Data("Done adding/上傳完成", CB_DONE_ADDING)
 	selector.Inline(selector.Row(btnDone))
 	return c.Reply(
 		fmt.Sprintf("File OK. Got %d stickers. Continue sending files or press button below to stop adding.\n"+
-			"檔案OK. 已收到%d份貼圖. 請繼續傳送檔案. 或者按下方按鈕來停止添加", count, count), selector)
+			"檔案OK. 已收到%d份貼圖. 請繼續傳送檔案. 或者按下方按鈕來完成上傳", count, count), selector)
 }
 
 func sendSEditOK(c tele.Context) error {
@@ -851,7 +851,7 @@ func sendSEditOK(c tele.Context) error {
 func sendStickerSetFullWarning(c tele.Context) error {
 	return c.Send(
 		"Warning: Your sticker set is already full. You cannot add new sticker.\n" +
-			"提示：當前貼圖包已滿，您將不能增添貼圖。")
+			"提示：目前貼圖包已滿，無法加入新的貼圖。")
 }
 
 // func sendEditingEmoji(c tele.Context) error {
@@ -915,7 +915,7 @@ eg:例如: <code>https://emoticon.kakao.com/items/lV6K2fWmU7CpXlHcP9-ysQJx9rg=?r
 
 func sendUseCommandToImport(c tele.Context) error {
 	return c.Send("Please use /create to create sticker set using your own photos and videos. /start\n" +
-		"請使用 /create 指令來使用自己的圖片和影片和創建貼圖包 /start")
+		"請使用 /create 指令來使用自己的圖片和影片和新增貼圖包 /start")
 }
 
 func sendOneStickerFailedToAdd(c tele.Context, pos int, err error) error {
