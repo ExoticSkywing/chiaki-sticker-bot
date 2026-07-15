@@ -1,6 +1,8 @@
 package core
 
 import (
+	"encoding/base64"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -39,5 +41,30 @@ func TestUploadedMediaSavePathPreservesImageType(t *testing.T) {
 				t.Fatalf("uploadedMediaSavePath() = %q, want %q", got, want)
 			}
 		})
+	}
+}
+
+func TestStickerSourceFilesSkipsArchiveMetadata(t *testing.T) {
+	dir := t.TempDir()
+	png := filepath.Join(dir, "sticker.png")
+	metadata := filepath.Join(dir, "._sticker.png")
+	unsupported := filepath.Join(dir, ".DS_Store")
+
+	pngBytes, err := base64.StdEncoding.DecodeString("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAF/gL+Zl5eAAAAAElFTkSuQmCC")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(png, pngBytes, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for _, file := range []string{metadata, unsupported} {
+		if err := os.WriteFile(file, []byte("metadata"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	got := stickerSourceFiles([]string{metadata, unsupported, png})
+	if len(got) != 1 || got[0] != png {
+		t.Fatalf("stickerSourceFiles() = %v, want [%s]", got, png)
 	}
 }

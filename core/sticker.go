@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gabriel-vasile/mimetype"
 	log "github.com/sirupsen/logrus"
 	"github.com/star-39/moe-sticker-bot/pkg/msbimport"
 	tele "gopkg.in/telebot.v3"
@@ -827,13 +828,16 @@ func appendMedia(c tele.Context) error {
 
 	err = c.Bot().Download(c.Message().Media().MediaFile(), savePath)
 	if err != nil {
-		return errors.New("error downloading media")
+		return fmt.Errorf("download media: %w", err)
 	}
 
 	if guessIsArchive(savePath) {
-		files = append(files, msbimport.ArchiveExtract(savePath)...)
+		files = append(files, stickerSourceFiles(msbimport.ArchiveExtract(savePath))...)
 	} else {
 		files = append(files, savePath)
+	}
+	if len(files) == 0 {
+		return errors.New("archive did not contain any supported image or video files")
 	}
 
 	log.Debugln("appendMedia: Media downloaded to savepath:", savePath)
@@ -893,6 +897,29 @@ func guessIsArchive(f string) bool {
 		}
 	}
 	return false
+}
+
+// stickerSourceFiles skips archive metadata such as .DS_Store and AppleDouble
+// files. Those files are commonly included by macOS-created ZIPs but are not
+// images, and passing them to ImageMagick makes an otherwise valid archive look
+// like a conversion failure.
+func stickerSourceFiles(files []string) []string {
+	sources := make([]string, 0, len(files))
+	for _, file := range files {
+		name := filepath.Base(file)
+		if name == ".DS_Store" || strings.HasPrefix(name, "._") || strings.Contains(file, "__MACOSX") {
+			log.Debugf("Skipping archive metadata file: %s", file)
+			continue
+		}
+
+		mediaType, err := mimetype.DetectFile(file)
+		if err != nil || !(strings.HasPrefix(mediaType.String(), "image/") || strings.HasPrefix(mediaType.String(), "video/")) {
+			log.Debugf("Skipping unsupported archive file: %s (%v)", file, err)
+			continue
+		}
+		sources = append(sources, file)
+	}
+	return sources
 }
 
 // uploadedMediaSavePath preserves the source extension whenever Telegram
