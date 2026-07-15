@@ -8,7 +8,7 @@
 
 上游 `9a12204..98b9817` 的 6 个提交已合并到当前 `main`。功能代码没有与本项目 TGS 透明 GIF 线路发生冲突；唯一冲突位于 `core/message.go` 的繁简中文文案，已保留简体中文，并吸收“上传完成”“压缩包”等更清晰的表达。全仓库 Go 测试和 MP4 到 WebM 的真实 ffmpeg 转换测试均通过。
 
-代码级合并已完成。Telegram 实际上传行为和 TGS 透明 GIF 输出仍需甲方在部署新镜像后进行业务验收。
+代码级合并已完成，甲方随后完成实际验证并确认结果 OK，本阶段验收通过。
 
 ## 3. 最终有效方案
 
@@ -70,11 +70,15 @@ docker run --rm \
 - 在 `chiaki-sticker-bot:local` 运行镜像内执行 `TestMP4ToWebmVideoSticker`：通过，真实调用 ffmpeg 完成 MP4 到 WebM 转换；
 - 比对 TGS 透明 GIF 关键文件：未被本次上游合并修改。
 
-需要人类执行或确认：
+人类已执行或确认：
 
-- 在实际 Telegram Bot 环境验证 PNG 文档、中文 ZIP、macOS ZIP 和视频上传；
-- 验证 TGS 下载转换后的 GIF 背景仍为透明；
-- 重新构建并部署生产镜像后确认 Bot、Webhook、WebApp 和健康检查正常。
+- 甲方已完成本次更新验证，并确认结果 OK。
+
+后续部署或环境变更时建议回归：
+
+- PNG 文档、中文 ZIP、macOS ZIP 和视频上传；
+- TGS 下载转换后的 GIF 背景透明度；
+- Bot、Webhook、WebApp 和健康检查。
 
 ## 8. 踩坑点 / 边界
 

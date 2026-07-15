@@ -78,7 +78,7 @@ docs/decisions/                   长期决策，可选
 - TGS 透明 GIF 后端已补充并验收：`MSB_TGS_GIF_BACKEND=auto`。
 - 用户交互中文简体化已补充并验收：`docs/phase-deliveries/2026-07-08-user-facing-simplified-chinese.md`。
 - Custom Emoji 自动拆包修复已合并并通过全仓库 Go 测试；仍需甲方在真实 Telegram 环境验证超过 200 个项目的导入。
-- 上传与压缩包处理修复已合并并通过全仓库测试和 MP4 实际转换测试；仍需在真实 Telegram 环境验证 PNG、中文 ZIP、macOS ZIP、视频上传和 TGS 透明 GIF。
+- 上传与压缩包处理修复已合并，通过全仓库测试和 MP4 实际转换测试，甲方已完成实际验证并确认结果 OK。
 - 后续可补充 smoke test 脚本，自动验证 health、webhook info、commands、WebApp 静态资源。
 
 ## 6. 接棒契约
