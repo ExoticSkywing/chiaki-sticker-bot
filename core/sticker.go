@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
+	"mime"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -822,23 +823,20 @@ func appendMedia(c tele.Context) error {
 	}
 
 	workDir = ud.workDir
-	savePath = filepath.Join(workDir, secHex(4))
-
-	if c.Message().Media().MediaType() == "document" {
-		savePath += filepath.Ext(c.Message().Document.FileName)
-	} else if c.Message().Media().MediaType() == "animation" {
-		savePath += filepath.Ext(c.Message().Animation.FileName)
-	}
+	savePath = uploadedMediaSavePath(c.Message(), workDir, secHex(4))
 
 	err = c.Bot().Download(c.Message().Media().MediaFile(), savePath)
 	if err != nil {
-		return errors.New("error downloading media")
+		return fmt.Errorf("download media: %w", err)
 	}
 
 	if guessIsArchive(savePath) {
-		files = append(files, msbimport.ArchiveExtract(savePath)...)
+		files = append(files, stickerSourceFiles(msbimport.ArchiveExtract(savePath))...)
 	} else {
 		files = append(files, savePath)
+	}
+	if len(files) == 0 {
+		return errors.New("archive did not contain any supported image or video files")
 	}
 
 	log.Debugln("appendMedia: Media downloaded to savepath:", savePath)
@@ -898,6 +896,69 @@ func guessIsArchive(f string) bool {
 		}
 	}
 	return false
+}
+
+// stickerSourceFiles skips archive metadata such as .DS_Store and AppleDouble
+// files. Those files are commonly included by macOS-created ZIPs but are not
+// images, and passing them to ImageMagick makes an otherwise valid archive look
+// like a conversion failure. Use the source filename extension here rather than
+// byte sniffing: valid image files in ZIPs may be reported as generic binary
+// data before ImageMagick decodes them.
+func stickerSourceFiles(files []string) []string {
+	sources := make([]string, 0, len(files))
+	for _, file := range files {
+		name := filepath.Base(file)
+		if name == ".DS_Store" || strings.HasPrefix(name, "._") || strings.Contains(file, "__MACOSX") {
+			log.Debugf("Skipping archive metadata file: %s", file)
+			continue
+		}
+
+		if !isStickerSourceFile(name) {
+			log.Debugf("Skipping unsupported archive file: %s", file)
+			continue
+		}
+		sources = append(sources, file)
+	}
+	return sources
+}
+
+func isStickerSourceFile(name string) bool {
+	switch strings.ToLower(filepath.Ext(name)) {
+	case ".apng", ".avif", ".bmp", ".gif", ".heic", ".heif", ".jpeg", ".jpg", ".png", ".tif", ".tiff", ".webp", ".webm", ".mp4", ".mov":
+		return true
+	default:
+		return false
+	}
+}
+
+// uploadedMediaSavePath preserves the source extension whenever Telegram
+// provides one. Photos do not carry a filename, so give them a JPEG extension;
+// image documents without a filename use their MIME type as a fallback. This
+// keeps image decoders that rely on extensions compatible with PNG and other
+// images sent as files.
+func uploadedMediaSavePath(message *tele.Message, workDir, baseName string) string {
+	path := filepath.Join(workDir, baseName)
+	if message == nil {
+		return path
+	}
+
+	switch {
+	case message.Document != nil:
+		if ext := filepath.Ext(message.Document.FileName); ext != "" {
+			return path + ext
+		}
+		if extensions, err := mime.ExtensionsByType(message.Document.MIME); err == nil && len(extensions) > 0 {
+			return path + extensions[0]
+		}
+	case message.Animation != nil:
+		if ext := filepath.Ext(message.Animation.FileName); ext != "" {
+			return path + ext
+		}
+	case message.Photo != nil:
+		return path + ".jpg"
+	}
+
+	return path
 }
 
 func verifyFloodedStickerSet(c tele.Context, fc int, ec int, desiredAmount int, ssn string) {

@@ -437,9 +437,9 @@ func sendAskStickerFile(c tele.Context) error {
 	return c.Send("Please send images/photos/stickers(less than 120 in total),\n" +
 		"or send an archive containing image files,\n" +
 		"wait until upload complete, then tap 'Done adding'.\n\n" +
-		"请发送任意格式的图片/视频/贴图(少于 120 张)\n" +
-		"或者发送内有贴图文件的压缩包,\n" +
-		"等候所有文件上传完成, 然后按下「停止添加」\n")
+		"请发送任意格式的图片、视频或贴图（总数少于 120 张），\n" +
+		"或者发送包含贴图文件的压缩包，\n" +
+		"等待所有文件上传完成，然后点击「上传完成」。\n")
 }
 
 func sendInStateWarning(c tele.Context) error {
@@ -827,19 +827,19 @@ func sendNoSToManage(c tele.Context) error {
 
 func sendPromptStopAdding(c tele.Context) error {
 	selector := &tele.ReplyMarkup{}
-	btnDone := selector.Data("Done adding/停止添加", CB_DONE_ADDING)
+	btnDone := selector.Data("Done adding/上传完成", CB_DONE_ADDING)
 	selector.Inline(selector.Row(btnDone))
 	return c.Send("Continue sending files or press button below to stop adding.\n"+
-		"请继续发送文件. 或者按下方按钮来停止", selector)
+		"请继续发送文件，或者点击下方按钮完成上传。", selector)
 }
 
 func replySFileOK(c tele.Context, count int) error {
 	selector := &tele.ReplyMarkup{}
-	btnDone := selector.Data("Done adding/停止添加", CB_DONE_ADDING)
+	btnDone := selector.Data("Done adding/上传完成", CB_DONE_ADDING)
 	selector.Inline(selector.Row(btnDone))
 	return c.Reply(
 		fmt.Sprintf("File OK. Got %d stickers. Continue sending files or press button below to stop adding.\n"+
-			"文件 OK. 已收到%d张贴图. 请继续发送文件. 或者按下方按钮来停止添加", count, count), selector)
+			"文件正常，已收到 %d 张贴图。请继续发送文件，或者点击下方按钮完成上传。", count, count), selector)
 }
 
 func sendSEditOK(c tele.Context) error {
@@ -851,7 +851,7 @@ func sendSEditOK(c tele.Context) error {
 func sendStickerSetFullWarning(c tele.Context) error {
 	return c.Send(
 		"Warning: Your sticker set is already full. You cannot add new sticker.\n" +
-			"提示：当前贴图包已满，你将不能添加贴图。")
+			"提示：当前贴图包已满，无法添加新的贴图。")
 }
 
 // func sendEditingEmoji(c tele.Context) error {
@@ -915,7 +915,7 @@ eg:例如: <code>https://emoticon.kakao.com/items/lV6K2fWmU7CpXlHcP9-ysQJx9rg=?r
 
 func sendUseCommandToImport(c tele.Context) error {
 	return c.Send("Please use /create to create sticker set using your own photos and videos. /start\n" +
-		"请使用 /create 指令来使用自己的图片和视频和创建贴图包 /start")
+		"请使用 /create 指令，通过自己的图片和视频创建贴图包。/start")
 }
 
 func sendOneStickerFailedToAdd(c tele.Context, pos int, err error) error {

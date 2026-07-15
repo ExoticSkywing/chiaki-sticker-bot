@@ -15,8 +15,8 @@
 
 最近一个已验收阶段：
 
-- 合并上游 Custom Emoji 自动拆包修复阶段
-- 交付包：`docs/phase-deliveries/2026-07-13-upstream-custom-emoji-split-merge.md`
+- 合并上游上传与压缩包处理修复阶段
+- 交付包：`docs/phase-deliveries/2026-07-15-upstream-upload-pipeline-fixes.md`
 
 当前稳定基线：
 
@@ -34,6 +34,8 @@
 - `.tgs -> gif` 默认使用 `MSB_TGS_GIF_BACKEND=auto`，优先 lottie-converter + gifski，失败回退 rlottie-python；
 - Telegram bot 与 WebApp 面向用户的中文交互文案已切换为简体中文。
 - 新建超过 200 个项目的 Custom Emoji 时，会按每包最多 200 个自动拆分并返回全部分包。
+- Telegram 上传媒体会保留或推断扩展名；ZIP 支持中文文件名并过滤无关文件；MP4、MOV、WebM 直接进入 ffmpeg 转换。
+- 上述上传修复与 TGS 透明 GIF 双线路并存，未替换 `MSB_TGS_GIF_BACKEND=auto` 的 lottie-converter/gifski 优先策略。
 
 更完整状态见：`DEPLOYMENT_STATUS.md`。
 
@@ -64,6 +66,7 @@ docs/decisions/                   长期决策，可选
 - `2026-07-07-tgs-transparent-gif-backend.md`：新增 `.tgs -> gif` 双线路后端，优先 lottie-converter + gifski，解决官方 TGS 转 GIF 黑底问题。
 - `2026-07-08-user-facing-simplified-chinese.md`：将 Telegram bot 与 WebApp 用户交互中文文案从繁体切换为简体，保持功能逻辑不变。
 - `2026-07-13-upstream-custom-emoji-split-merge.md`：合并上游 Custom Emoji 超过 200 个项目时自动拆包的修复，并保留本项目简体中文提示。
+- `2026-07-15-upstream-upload-pipeline-fixes.md`：合并上传扩展名、压缩包过滤、中文 ZIP 文件名和视频 ffmpeg 路由修复，并确认不影响 TGS 透明 GIF 线路。
 
 ## 5. 当前待解决问题
 
@@ -75,6 +78,7 @@ docs/decisions/                   长期决策，可选
 - TGS 透明 GIF 后端已补充并验收：`MSB_TGS_GIF_BACKEND=auto`。
 - 用户交互中文简体化已补充并验收：`docs/phase-deliveries/2026-07-08-user-facing-simplified-chinese.md`。
 - Custom Emoji 自动拆包修复已合并并通过全仓库 Go 测试；仍需甲方在真实 Telegram 环境验证超过 200 个项目的导入。
+- 上传与压缩包处理修复已合并并通过全仓库测试和 MP4 实际转换测试；仍需在真实 Telegram 环境验证 PNG、中文 ZIP、macOS ZIP、视频上传和 TGS 透明 GIF。
 - 后续可补充 smoke test 脚本，自动验证 health、webhook info、commands、WebApp 静态资源。
 
 ## 6. 接棒契约
@@ -96,6 +100,6 @@ docs/decisions/                   长期决策，可选
 
 1. 想了解当前生产状态：读 `DEPLOYMENT_STATUS.md`；
 2. 想复现部署：读 `DEPLOY_DOCKER_COMPOSE.md`；
-3. 想了解最近交付结果：读 `docs/phase-deliveries/2026-07-13-upstream-custom-emoji-split-merge.md`；
+3. 想了解最近交付结果：读 `docs/phase-deliveries/2026-07-15-upstream-upload-pipeline-fixes.md`；
 4. 想了解框架契约：读 `docs/PROTOCOL.md`；
 5. 想继续开发：从 `cmd/moe-sticker-bot/main.go`、`core/init.go`、`core/webapp.go`、`pkg/msbimport/` 开始。

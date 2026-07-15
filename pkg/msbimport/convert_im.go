@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 
 	log "github.com/sirupsen/logrus"
@@ -53,6 +54,13 @@ func IMToApng(f string) (string, error) {
 // If the source is IMAGE, convert to WEBP,
 // If the source is VIDEO, convert to WEBM
 func ConverMediaToTGStickerSmart(f string, isCustomEmoji bool) (string, error) {
+	// ImageMagick's identify is reliable for images, but video support depends on
+	// optional delegates and can fail before ffmpeg ever gets a chance to encode
+	// the sticker. Route known video containers directly to the video pipeline.
+	if isVideoMediaFile(f) {
+		return FFToWebmTGVideo(f, isCustomEmoji)
+	}
+
 	// Count frames by running identify without -format and counting output lines.
 	// This is more reliable than -format "%n" for animated WebP, which older
 	// ImageMagick versions may misreport as 1 frame.
@@ -76,6 +84,15 @@ func ConverMediaToTGStickerSmart(f string, isCustomEmoji bool) (string, error) {
 		return FFToWebmTGVideo(f, isCustomEmoji)
 	}
 	return IMToWebpTGStatic(f, isCustomEmoji)
+}
+
+func isVideoMediaFile(f string) bool {
+	switch strings.ToLower(filepath.Ext(f)) {
+	case ".mp4", ".mov", ".webm":
+		return true
+	default:
+		return false
+	}
 }
 
 // isAnimatedWebp reports whether f is an animated WebP by inspecting the
