@@ -12,7 +12,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gabriel-vasile/mimetype"
 	log "github.com/sirupsen/logrus"
 	"github.com/star-39/moe-sticker-bot/pkg/msbimport"
 	tele "gopkg.in/telebot.v3"
@@ -902,7 +901,9 @@ func guessIsArchive(f string) bool {
 // stickerSourceFiles skips archive metadata such as .DS_Store and AppleDouble
 // files. Those files are commonly included by macOS-created ZIPs but are not
 // images, and passing them to ImageMagick makes an otherwise valid archive look
-// like a conversion failure.
+// like a conversion failure. Use the source filename extension here rather than
+// byte sniffing: valid image files in ZIPs may be reported as generic binary
+// data before ImageMagick decodes them.
 func stickerSourceFiles(files []string) []string {
 	sources := make([]string, 0, len(files))
 	for _, file := range files {
@@ -912,14 +913,22 @@ func stickerSourceFiles(files []string) []string {
 			continue
 		}
 
-		mediaType, err := mimetype.DetectFile(file)
-		if err != nil || !(strings.HasPrefix(mediaType.String(), "image/") || strings.HasPrefix(mediaType.String(), "video/")) {
-			log.Debugf("Skipping unsupported archive file: %s (%v)", file, err)
+		if !isStickerSourceFile(name) {
+			log.Debugf("Skipping unsupported archive file: %s", file)
 			continue
 		}
 		sources = append(sources, file)
 	}
 	return sources
+}
+
+func isStickerSourceFile(name string) bool {
+	switch strings.ToLower(filepath.Ext(name)) {
+	case ".apng", ".avif", ".bmp", ".gif", ".heic", ".heif", ".jpeg", ".jpg", ".png", ".tif", ".tiff", ".webp", ".webm", ".mp4", ".mov":
+		return true
+	default:
+		return false
+	}
 }
 
 // uploadedMediaSavePath preserves the source extension whenever Telegram

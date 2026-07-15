@@ -1,7 +1,6 @@
 package core
 
 import (
-	"encoding/base64"
 	"os"
 	"path/filepath"
 	"testing"
@@ -50,11 +49,7 @@ func TestStickerSourceFilesSkipsArchiveMetadata(t *testing.T) {
 	metadata := filepath.Join(dir, "._sticker.png")
 	unsupported := filepath.Join(dir, ".DS_Store")
 
-	pngBytes, err := base64.StdEncoding.DecodeString("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAF/gL+Zl5eAAAAAElFTkSuQmCC")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(png, pngBytes, 0o600); err != nil {
+	if err := os.WriteFile(png, []byte("not inspected here"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	for _, file := range []string{metadata, unsupported} {
